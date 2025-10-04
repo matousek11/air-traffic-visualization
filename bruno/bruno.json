@@ -1,0 +1,9 @@
+{
+  "version": "1",
+  "name": "mtcd-visualization",
+  "type": "collection",
+  "ignore": [
+    "node_modules",
+    ".git"
+  ]
+}

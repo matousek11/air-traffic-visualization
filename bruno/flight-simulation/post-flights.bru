@@ -1,0 +1,27 @@
+meta {
+  name: /flights
+  type: http
+  seq: 3
+}
+
+post {
+  url: http://localhost:8000/flights
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "flight_id": "CSA202",
+    "plane_type": "A320",
+    "lat": 50,
+    "lon": 14,
+    "heading": 90,
+    "flight_level": 100,
+    "speed": 250
+  }
+}
