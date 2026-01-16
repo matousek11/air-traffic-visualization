@@ -1,2 +1,6 @@
 web-server/node_modules
 web-server/static/build
+.coverage
+sample-nm-b2b-data
+.idea
+uml

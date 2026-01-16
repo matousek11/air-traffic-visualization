@@ -21,3 +21,21 @@ body {
     margin-top: 0;
     margin-bottom: 0;
 }
+
+#bottom-left-button {
+    position: fixed;
+    bottom: 20px;
+    left: 20px;
+    z-index: 1000;
+    padding: 10px 20px;
+    background-color: #007bff;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 16px;
+}
+
+#bottom-left-button:hover {
+    background-color: #0056b3;
+}

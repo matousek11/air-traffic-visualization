@@ -5,15 +5,15 @@ meta {
 }
 
 get {
-  url: http://localhost:8000/flights?flight_id=CSA202
+  url: http://localhost:8001/flights?flight_id=CSA202
   body: none
   auth: none
 }
 
-headers {
-  Content-Type: application/json
+params:query {
+  flight_id: CSA202
 }
 
-params:query {
-    flight_id: CSA202
+headers {
+  Content-Type: application/json
 }

@@ -5,6 +5,7 @@ Houses api for control of BlueSky simulation
 from typing import List
 
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from .services.bluesky_service import BlueskyService
 from .models.flight import Flight
 from .models.flight_with_flight_plan import FlightWithFlightPlan
@@ -16,6 +17,15 @@ bluesky_service.run_simulation_thread()
 
 app = FastAPI()
 
+# Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # In production, replace with specific origins
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 #bluesky_service.create_flight("AAL101", "B763", 50, 14, 90, 100, 250)
 #bluesky_service.create_flight("DAL202", "B763", 49.95, 14.05, 0, 100, 280)
 #bluesky_service.get_flight_position()
@@ -23,7 +33,7 @@ app = FastAPI()
 @app.post("/flights")
 def add_flight(flight: Flight) -> Flight:
     """
-    Adds new flight to BlueSky and return that flight
+    Adds new flight to BlueSky simulation and return that flight
     """
     bluesky_service.create_flight(flight)
     return flight

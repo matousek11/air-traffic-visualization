@@ -77,9 +77,8 @@ class BlueskyService:
         lon = bs.traf.lon[idx]
         alt = bs.traf.alt[idx]
         hdg = bs.traf.hdg[idx]
-        gs = bs.traf.gs[idx]
+        gs = bs.traf.gs[idx] * 1.94384449
         flight_plan = self.flight_plan_service.get_flight_plan(flight_id)
-        print(bs.traf)
         return FlightWithFlightPlan(
             flight_id=flight_id,
             plane_type=bs.traf.type[idx],
@@ -101,7 +100,7 @@ class BlueskyService:
             lon = bs.traf.lon[i]
             alt = bs.traf.alt[i]
             hdg = bs.traf.hdg[i]
-            gs = bs.traf.gs[i]
+            gs = bs.traf.gs[i] * 1.94384449
             flight_plan = self.flight_plan_service.get_flight_plan(acid)
             flights.append(
                 FlightWithFlightPlan(
