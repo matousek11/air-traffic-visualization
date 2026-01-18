@@ -32,4 +32,6 @@ class Plane:
         """
         Calculate plane quantities like vertical speed from last two positions
         """
-        PhysicsCalculator.get_horizontal_speed(self.positions[-1], self.positions[-2])
+        PhysicsCalculator.get_horizontal_speed(
+            self.positions[-1], self.positions[-2]
+        )

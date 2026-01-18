@@ -28,10 +28,6 @@ const SimulationScenariosDataSchema = z
         message: "Simulation scenarios must contain at least one scenario",
     });
 
-
-type Position = z.infer<typeof PositionSchema>;
-type PlanePosition = z.infer<typeof PlanePositionSchema>;
-type Flight = z.infer<typeof FlightSchema>;
 type SimulationScenario = z.infer<typeof SimulationScenarioSchema>;
 type SimulationScenariosData = z.infer<typeof SimulationScenariosDataSchema>;
 
@@ -62,7 +58,7 @@ export class SimulationScenarios {
             throw new Error(`Scenario "${scenarioName}" not found.`);
         }
         
-        return this.scenarios[scenarioName]!;
+        return this.scenarios[scenarioName] as SimulationScenario;
     }
 
     /**

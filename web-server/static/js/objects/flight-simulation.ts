@@ -24,7 +24,7 @@ export class FlightSimulation {
      * Resets simulation on current data provider
      */
     public resetSimulation(): void {
-        let _ = this.blueSkyDataProvider.resetSimulation();
+        void this.blueSkyDataProvider.resetSimulation();
     }
 
     /**

@@ -28,5 +28,6 @@ class Flight:
         self.non_icao_aerodrome_of_departure = non_icao_aerodrome_of_departure
         self.air_filed = air_filed
         self.aerodrome_of_destination = aerodrome_of_destination
-        self.non_icao_aerodrome_of_destination = non_icao_aerodrome_of_destination
+        self.non_icao_aerodrome_of_destination \
+            = non_icao_aerodrome_of_destination
         self.plane = plane

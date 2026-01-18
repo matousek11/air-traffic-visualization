@@ -11,12 +11,15 @@ def test_distance_between_two_points() -> None:
     """
     Tests if distance between two points is correctly calculated
     """
-    distance_in_km = PhysicsCalculator.get_distance_between_positions(0, 0, 5, 5)
+    distance_in_km = PhysicsCalculator.get_distance_between_positions(
+        0, 0, 5, 5
+    )
     assert math.isclose(distance_in_km, 785, abs_tol=0.8)
 
 def test_speed_between_two_positions() -> None:
     """
-    Tests if speed in km/h between two points with given time is correctly calculated
+    Tests if speed in km/h between two points
+    with given time is correctly calculated
     """
     speed_in_km = PhysicsCalculator.get_horizontal_speed(
         Position(0, 0, 0, 240),
@@ -27,7 +30,8 @@ def test_speed_between_two_positions() -> None:
 
 def test_vertical_speed() -> None:
     """
-    Tests if vertical speed in m/s between two points with given time is correctly calculated
+    Tests if vertical speed in m/s between two points
+    with given time is correctly calculated
     """
     vertical_speed = PhysicsCalculator.get_vertical_speed(
         Position(0, 0, 0, 240),

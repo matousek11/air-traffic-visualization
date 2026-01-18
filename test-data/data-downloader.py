@@ -1,16 +1,21 @@
+"""
+Example of NM B2B request through redis
+"""
+
 import redis
 from datetime import datetime
 # Packages for XML pretty print
 import xml.dom.minidom
 
 # Use initialization with default port 6379
-r = redis.Redis(host='10.15.2.203')
+r = redis.Redis(host="10.15.2.203")
 
 # Get Publish/Subscribe object
 p = r.pubsub()
 
-p.subscribe('css:b2b:rep:karelhtut3:1')
-# First message is Redis confirmation - subscribing result (after waiting some time) 
+p.subscribe("css:b2b:rep:karelhtut3:1")
+# First message is Redis confirmation
+# subscribing result (after waiting some time)
 print(p.get_message(timeout=0.1))
 
 # Update the requested time range
@@ -66,22 +71,25 @@ xml_request2 = """<?xml version="1.0"?>
 """.format(datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
 
 # Publish each JSON request to channel
-print(r.publish('css:b2b:req:karelhtut3:1', xml_request2.encode(encoding="utf-8")))
+print(r.publish(
+    "css:b2b:req:karelhtut3:1",
+    xml_request2.encode(encoding="utf-8")
+))
 
 # Obtain data message from Response channel (with significant delay)
-message = p.get_message(timeout=10.0) 
-if message is None: 
-    print('No result obtained.')
+message = p.get_message(timeout=10.0)
+if message is None:
+    print("No result obtained.")
 else:
-    print('Result obtained.')
+    print("Result obtained.")
 
 if message is not None:
     # Prity print of obtained response data - without main flights content
     print("XML Result:")
-    raw_data = message['data']
+    raw_data = message["data"]
     print("Raw message data:", repr(raw_data))
     # Parse XML to xmk.dom structure
-    result = xml.dom.minidom.parseString(message['data'].decode("utf-8"))
+    result = xml.dom.minidom.parseString(message["data"].decode("utf-8"))
     # Remove the flight list from xml.dom
     #textnode = result.createTextNode("...Flights list removed...")
     nodes = result.getElementsByTagName("flights")
@@ -94,6 +102,6 @@ if message is not None:
 
     # Save obtained response data directly to File
     newFile = open("LKFlightsResults.xml", "wb")
-    newFile.write(message['data'])
+    newFile.write(message["data"])
     newFile.close()
     print("Result file created...")

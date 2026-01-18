@@ -54,8 +54,8 @@ export class MapUi {
             clearInterval(this.updateIntervalId);
         }
 
-        this.updateFlights();
-        this.updateIntervalId = setInterval((): void => {this.updateFlights();}, 4000);
+        void this.updateFlights();
+        this.updateIntervalId = setInterval((): void => void this.updateFlights(), 4000);
     }
 
     private async updateFlights(): Promise<void> {

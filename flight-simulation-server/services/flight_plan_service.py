@@ -6,16 +6,22 @@ from ..models.waypoint import Waypoint
 
 class FlightPlanService:
     """
-    This class is responsible for flight plans which are also propagated through api into BlueSky
+    This class is responsible for flight plans
+    which are also propagated through api into BlueSky
     """
 
     def __init__(self):
         self.flight_plans = {}
 
-    def add_waypoint_to_flight_plan(self, flight_id: str, waypoint: Waypoint) -> None:
+    def add_waypoint_to_flight_plan(
+            self,
+            flight_id: str,
+            waypoint: Waypoint
+    ) -> None:
         """
         :param flight_id: ID of the flight like CSA201
-        :param waypoint: Waypoint where its name is as it is in aviation map (TUMKA, ARVEG...)
+        :param waypoint: Waypoint where its name is as
+        it is in aviation map (TUMKA, ARVEG...)
         """
         if flight_id not in self.flight_plans:
             self.flight_plans[flight_id] = [waypoint]

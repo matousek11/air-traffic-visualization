@@ -21,7 +21,7 @@ This software is visualizing places where collision predictions occurs frequentl
 
 # Dev tools
 ## Python codebase
-- linter `pylint .`
+- linter `pylint --rcfile=pylint.rc .`
 - tests `pytest tests/`
 - code coverage `pytest --cov=. --cov-report=term --cov-config=.coveragerc`
 

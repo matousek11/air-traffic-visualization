@@ -24,6 +24,9 @@
 # Files or directories to be skipped. They should be base names, not paths.
 ignore=third_party
 
+# Paths to ignore (regex patterns matching full paths)
+ignore-paths=.*node_modules.*
+
 # Files or directories matching the regex patterns are skipped. The regex
 # matches against base names, not paths.
 ignore-patterns=
