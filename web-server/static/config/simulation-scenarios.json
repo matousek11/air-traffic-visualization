@@ -1,0 +1,37 @@
+{
+  "90DegreePlaneCollision": {
+    "name": "90 degree imminent collision",
+    "flights": [
+      {
+        "flightID": "CSA202",
+        "planeType": "A320",
+        "planePosition": {
+          "speed": 250,
+          "vertical_speed": 0,
+          "heading": 90,
+          "height": 100,
+          "position": [
+            50,
+            13.9
+          ]
+        },
+        "flightPositions": []
+      },
+      {
+        "flightID": "EZY451",
+        "planeType": "A320",
+        "planePosition": {
+          "speed": 250,
+          "vertical_speed": 0,
+          "heading": 0,
+          "height": 100,
+          "position": [
+            49.935,
+            14.0
+          ]
+        },
+        "flightPositions": []
+      }
+    ]
+  }
+}

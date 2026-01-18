@@ -7,13 +7,17 @@ from typing import List
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from .services.bluesky_service import BlueskyService
+from .services.mtcd_toolkit import MtcdToolkit
 from .models.flight import Flight
 from .models.flight_with_flight_plan import FlightWithFlightPlan
 from .models.waypoint import Waypoint
+from .models.closest_approach_point import ClosestApproachPoint
 
 bluesky_service = BlueskyService()
 bluesky_service.start_simulation()
 bluesky_service.run_simulation_thread()
+
+mtcd_toolkit = MtcdToolkit(bluesky_service)
 
 app = FastAPI()
 
@@ -26,10 +30,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-#bluesky_service.create_flight("AAL101", "B763", 50, 14, 90, 100, 250)
-#bluesky_service.create_flight("DAL202", "B763", 49.95, 14.05, 0, 100, 280)
-#bluesky_service.get_flight_position()
-
 @app.post("/flights")
 def add_flight(flight: Flight) -> Flight:
     """
@@ -38,8 +38,13 @@ def add_flight(flight: Flight) -> Flight:
     bluesky_service.create_flight(flight)
     return flight
 
-@app.get("/flights", response_model=List[FlightWithFlightPlan]|FlightWithFlightPlan)
-def get_flight(flight_id: str|None = None) -> List[FlightWithFlightPlan]|FlightWithFlightPlan:
+@app.get(
+    "/flights",
+    response_model=List[FlightWithFlightPlan]|FlightWithFlightPlan
+)
+def get_flight(
+        flight_id: str|None = None
+) -> List[FlightWithFlightPlan]|FlightWithFlightPlan:
     """
     Lists all currently running flight in BlueSky
     """
@@ -68,3 +73,36 @@ def reset_simulation():
     Reset BlueSky simulation
     """
     bluesky_service.reset_simulation()
+
+@app.get("/closest-approach-point")
+def get_closest_approach_point(
+        first_flight_id: str,
+        second_flight_id: str
+) -> ClosestApproachPoint:
+    """
+    Calculates the closest approach point between two flights and their distance
+    """
+    if first_flight_id == second_flight_id:
+        raise ValueError("First flight id must be different")
+
+    [
+        horizontal_distance,
+        vertical_distance,
+        time_to_closest_approach_point,
+        middle_point_lat,
+        middle_point_lon,
+        middle_point_fl,
+    ] = mtcd_toolkit.calculate_closest_approach_point(
+        first_flight_id, second_flight_id
+    )
+
+    return ClosestApproachPoint(
+        first_flight_id=first_flight_id,
+        second_flight_id=second_flight_id,
+        horizontal_distance=horizontal_distance,
+        vertical_distance=vertical_distance,
+        time_to_closest_approach=time_to_closest_approach_point,
+        middle_point_lat=middle_point_lat,
+        middle_point_lon=middle_point_lon,
+        middle_point_fl=middle_point_fl,
+    )

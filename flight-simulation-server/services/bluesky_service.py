@@ -7,16 +7,19 @@ import time
 import threading
 
 import bluesky as bs
-import bluesky.stack as stack
+from bluesky import stack
 from .flight_plan_service import FlightPlanService
 from ..models.flight import Flight
 from ..models.flight_with_flight_plan import FlightWithFlightPlan
 from ..models.waypoint import Waypoint
 
 class BlueskyService:
+    """
+    Handles control and updates of Bluesky simulation
+    """
     def __init__(self):
         # Initialize BlueSky in simulation mode without networking
-        bs.init(mode='sim', detached=False)
+        bs.init(mode="sim", detached=False)
         self._running = False
         self._sim_thread = None
         self.flight_plan_service = FlightPlanService()
@@ -24,11 +27,13 @@ class BlueskyService:
     def __del__(self):
         self.stop_simulation_thread()
 
-    def run_simulation_thread(self, interval: float = 1):
+    def run_simulation_thread(self, interval: float = 0.05):
         """Start background thread to step simulation automatically."""
         if self._sim_thread is None or not self._sim_thread.is_alive():
             self._running = True
-            self._sim_thread = threading.Thread(target=self.run_simulation_time, args=(interval,), daemon=True)
+            self._sim_thread = threading.Thread(
+                target=self.run_simulation_time, args=(interval,), daemon=True
+            )
             self._sim_thread.start()
             print("Simulation thread started.")
 
@@ -77,7 +82,8 @@ class BlueskyService:
         lon = bs.traf.lon[idx]
         alt = bs.traf.alt[idx]
         hdg = bs.traf.hdg[idx]
-        gs = bs.traf.gs[idx] * 1.94384449
+        vertical_speed = bs.traf.vs[idx] * 3.28084 * 60  # m/s to ft/min
+        gs = bs.traf.gs[idx] * 1.94384449 # from km/h to kts
         flight_plan = self.flight_plan_service.get_flight_plan(flight_id)
         return FlightWithFlightPlan(
             flight_id=flight_id,
@@ -87,6 +93,7 @@ class BlueskyService:
             flight_level=int(alt),
             heading=int(hdg),
             speed=int(gs),
+            vertical_speed=int(vertical_speed),
             flight_plan=flight_plan
         )
 
@@ -100,7 +107,8 @@ class BlueskyService:
             lon = bs.traf.lon[i]
             alt = bs.traf.alt[i]
             hdg = bs.traf.hdg[i]
-            gs = bs.traf.gs[i] * 1.94384449
+            vertical_speed = bs.traf.vs[i] * 3.28084 * 60 # m/s to ft/min
+            gs = bs.traf.gs[i] * 1.94384449 # from km/h to kts
             flight_plan = self.flight_plan_service.get_flight_plan(acid)
             flights.append(
                 FlightWithFlightPlan(
@@ -111,15 +119,24 @@ class BlueskyService:
                     flight_level=int(alt),
                     heading=int(hdg),
                     speed=int(gs),
+                    vertical_speed=int(vertical_speed),
                     flight_plan=flight_plan
                 )
             )
 
         return flights
 
-    def add_waypoint(self, flight_id: str, waypoint: Waypoint) -> Waypoint:
+    def add_waypoint(
+            self,
+            flight_id: str,
+            waypoint: Waypoint
+    ) -> Waypoint:
         """Adds a waypoint as the last one to the flight"""
-        self.flight_plan_service.add_waypoint_to_flight_plan(flight_id, waypoint)
-        stack.stack(f"{flight_id} ADDWPT {waypoint.name} FL{waypoint.flight_level} {waypoint.speed}")
+        self.flight_plan_service.add_waypoint_to_flight_plan(
+            flight_id, waypoint
+        )
+        stack.stack(
+            f"{flight_id} ADDWPT {waypoint.name} FL{waypoint.flight_level} {waypoint.speed}"
+        )
 
         return waypoint

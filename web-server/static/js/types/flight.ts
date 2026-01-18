@@ -2,6 +2,7 @@ export type Position = [number, number]
 
 export type PlanePosition = {
     speed: number,
+    vertical_speed: number,
     heading: number,
     height: number
     position: Position

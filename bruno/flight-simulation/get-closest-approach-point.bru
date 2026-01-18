@@ -1,0 +1,20 @@
+meta {
+  name: /closest-approach-point
+  type: http
+  seq: 4
+}
+
+get {
+  url: http://localhost:8001/closest-approach-point
+  body: none
+  auth: none
+}
+
+params:query {
+  first_flight_id: CSA202
+  second_flight_id: EZY451
+}
+
+headers {
+  Content-Type: application/json
+}

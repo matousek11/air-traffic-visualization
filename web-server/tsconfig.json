@@ -6,6 +6,7 @@
     "rootDir": "./static/js",
     "moduleResolution": "Node",
     "esModuleInterop": true,
+    "resolveJsonModule": true,
 
     // Environment Settings
     // See also https://aka.ms/tsconfig/module
