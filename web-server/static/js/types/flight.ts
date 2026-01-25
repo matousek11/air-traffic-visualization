@@ -5,6 +5,7 @@ export type PlanePosition = {
   vertical_speed: number;
   heading: number;
   height: number;
+  target_flight_level: number | null;
   position: Position;
 };
 

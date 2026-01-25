@@ -33,5 +33,111 @@
         "flightPositions": []
       }
     ]
+  },
+  "VerticalPlaneCollision": {
+    "name": "Vertical plane collision",
+    "flights": [
+      {
+        "flightID": "CSA202",
+        "planeType": "A320",
+        "planePosition": {
+          "speed": 250,
+          "vertical_speed": 0,
+          "heading": 90,
+          "height": 100,
+          "position": [
+            50,
+            13.9
+          ]
+        },
+        "flightPositions": []
+      },
+      {
+        "flightID": "EZY451",
+        "planeType": "A320",
+        "planePosition": {
+          "speed": 250,
+          "target_flight_level": 100,
+          "vertical_speed": 2000,
+          "heading": 0,
+          "height": 80,
+          "position": [
+            49.935,
+            14.0
+          ]
+        },
+        "flightPositions": []
+      }
+    ]
+  },
+  "90DegreePlaneFlyover": {
+    "name": "90 degree plane flyover",
+    "flights": [
+      {
+        "flightID": "CSA202",
+        "planeType": "A320",
+        "planePosition": {
+          "speed": 250,
+          "vertical_speed": 0,
+          "heading": 90,
+          "height": 100,
+          "position": [
+            50,
+            13.9
+          ]
+        },
+        "flightPositions": []
+      },
+      {
+        "flightID": "EZY451",
+        "planeType": "A320",
+        "planePosition": {
+          "speed": 250,
+          "vertical_speed": 0,
+          "heading": 0,
+          "height": 80,
+          "position": [
+            49.935,
+            14.0
+          ]
+        },
+        "flightPositions": []
+      }
+    ]
+  },
+  "CollisionFromTheBack": {
+    "name": "Collision from the back",
+    "flights": [
+      {
+        "flightID": "CSA202",
+        "planeType": "A320",
+        "planePosition": {
+          "speed": 200,
+          "vertical_speed": 0,
+          "heading": 90,
+          "height": 100,
+          "position": [
+            50,
+            13.9
+          ]
+        },
+        "flightPositions": []
+      },
+      {
+        "flightID": "EZY451",
+        "planeType": "A320",
+        "planePosition": {
+          "speed": 300,
+          "vertical_speed": 0,
+          "heading": 90,
+          "height": 100,
+          "position": [
+            50,
+            13.5
+          ]
+        },
+        "flightPositions": []
+      }
+    ]
   }
 }

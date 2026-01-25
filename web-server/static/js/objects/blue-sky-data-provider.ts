@@ -9,6 +9,7 @@ export type ApiFlightStructure = {
   flight_level: number;
   speed: number;
   vertical_speed: number;
+  target_flight_level: number | null;
   flight_plan: Array<{ name: string; flight_level: number; speed: number }>;
 };
 
@@ -49,6 +50,7 @@ export class BlueSkyDataProvider {
           lon: flight.planePosition.position[1],
           heading: flight.planePosition.heading,
           flight_level: flight.planePosition.height,
+          target_flight_level: flight.planePosition.target_flight_level ?? null,
           speed: flight.planePosition.speed,
           vertical_speed: flight.planePosition.vertical_speed,
         }),
@@ -130,19 +132,20 @@ export class BlueSkyDataProvider {
   /**
    * Converts Flight structure from API response to JS client Flight
    *
-   * @param apiFlight Data to be converted into JS structure
+   * @param api_flight Data to be converted into JS structure
    */
-  private mapApiFlightToFlight(apiFlight: ApiFlightStructure): Flight {
-    const currentPos: Position = [apiFlight.lat, apiFlight.lon];
+  private mapApiFlightToFlight(api_flight: ApiFlightStructure): Flight {
+    const currentPos: Position = [api_flight.lat, api_flight.lon];
 
     return {
-      flightID: apiFlight.flight_id,
-      planeType: apiFlight.plane_type,
+      flightID: api_flight.flight_id,
+      planeType: api_flight.plane_type,
       planePosition: {
-        speed: apiFlight.speed,
-        vertical_speed: apiFlight.vertical_speed,
-        heading: apiFlight.heading,
-        height: apiFlight.flight_level,
+        speed: api_flight.speed,
+        vertical_speed: api_flight.vertical_speed,
+        heading: api_flight.heading,
+        target_flight_level: api_flight.target_flight_level,
+        height: api_flight.flight_level * 100,
         position: currentPos,
       },
       flightPositions: [currentPos],

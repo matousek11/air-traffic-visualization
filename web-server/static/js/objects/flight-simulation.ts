@@ -28,15 +28,13 @@ export class FlightSimulation {
   }
 
   /**
-   * Loads scenario into simulation from scenarios json
+   * Loads a scenario into the simulation by name
    *
-   * @param scenarioName scenario that should be loaded from scenarios
+   * @param scenarioName Name of the scenario to load from scenarios JSON
    */
-  public headCollisionTestScenario(
-    scenarioName: string = '90DegreePlaneCollision',
-  ): void {
-    let checkedScenarios = new SimulationScenarios(scenarios);
-    let scenario = checkedScenarios.getScenario(scenarioName);
+  public loadScenario(scenarioName: string): void {
+    const checkedScenarios = new SimulationScenarios(scenarios);
+    const scenario = checkedScenarios.getScenario(scenarioName);
 
     scenario.flights.forEach(
       (flight): Promise<void> => this.blueSkyDataProvider.createFlight(flight),

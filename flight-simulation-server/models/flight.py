@@ -14,6 +14,7 @@ class Flight(BaseModel):
     lon: float
     heading: int
     flight_level: int
+    target_flight_level: int | None = None
     speed: int
     vertical_speed: float
 
@@ -23,3 +24,9 @@ class Flight(BaseModel):
             f"CRE {self.flight_id} {self.plane_type} {self.lat} {self.lon} "
             f"{self.heading} FL{self.flight_level} {self.speed}"
         )
+
+    def get_vertical_speed(self) -> str:
+        if self.vertical_speed == 0 or self.target_flight_level is None:
+            return f"{self.flight_id} VNAV ON"
+
+        return f"ALT {self.flight_id} {self.target_flight_level * 100} {self.vertical_speed}"

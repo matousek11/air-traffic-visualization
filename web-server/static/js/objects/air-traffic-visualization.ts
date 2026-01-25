@@ -1,17 +1,21 @@
 import { MapUi } from './map-ui';
+import { ScenarioModal } from './scenario-modal';
 
 /**
  * Entry class for client web application.
  */
 export class AirTrafficVisualization {
   private readonly mapUi: MapUi;
+  private readonly scenarioModal: ScenarioModal;
 
   /**
    * Automatically initialize web UI
    */
   constructor() {
     this.mapUi = new MapUi();
+    this.scenarioModal = new ScenarioModal();
     this.initHandlers();
+    this.initModalCallbacks();
   }
 
   /**
@@ -19,7 +23,7 @@ export class AirTrafficVisualization {
    */
   private initHandlers(): void {
     const uiHandlers: Record<string, () => void> = {
-      'bottom-left-button': () => this.startScenario(),
+      'bottom-left-button': () => this.openScenarioModal(),
     };
 
     Object.entries(uiHandlers).forEach(([elementId, handler]): void => {
@@ -28,10 +32,25 @@ export class AirTrafficVisualization {
   }
 
   /**
+   * Initialize callbacks for the scenario modal
+   */
+  private initModalCallbacks(): void {
+    this.scenarioModal.setOnScenarioSelected(
+      (scenarioName: string): void => {
+        this.startScenario(scenarioName);
+      },
+    );
+
+    this.scenarioModal.setOnStopSimulation((): void => {
+      this.stopSimulation();
+    });
+  }
+
+  /**
    * Bind handler to click event on element
    *
-   * @param elementId
-   * @param handler
+   * @param elementId ID of the HTML element to bind
+   * @param handler Function to be called on click
    *
    * @throws Error When HTML element with buttonID doesn't exist
    */
@@ -45,9 +64,25 @@ export class AirTrafficVisualization {
   }
 
   /**
-   * Starts selected simulation scenario
+   * Opens the scenario selection modal
    */
-  private startScenario(): void {
-    this.mapUi.startHeadOnScenario();
+  private openScenarioModal(): void {
+    this.scenarioModal.show();
+  }
+
+  /**
+   * Starts the selected simulation scenario
+   *
+   * @param scenarioName Name of the scenario to start
+   */
+  private startScenario(scenarioName: string): void {
+    this.mapUi.startScenario(scenarioName);
+  }
+
+  /**
+   * Stops the current simulation
+   */
+  private stopSimulation(): void {
+    this.mapUi.stopSimulation();
   }
 }

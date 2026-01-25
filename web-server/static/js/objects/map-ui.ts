@@ -57,14 +57,42 @@ export class MapUi {
     });
   }
 
-  public startHeadOnScenario(): void {
+  /**
+   * Starts a simulation scenario by name
+   *
+   * @param scenarioName Name of the scenario to load and start
+   */
+  public startScenario(scenarioName: string): void {
     // remove flights from simulation then start new scenario
     this.flightSimulation.resetSimulation();
-    this.flightSimulation.headCollisionTestScenario();
+    this.flightSimulation.loadScenario(scenarioName);
     setTimeout(() => {
       this.startUpdateLoop();
       this.startMTCDUpdateLoop();
     }, 5000);
+  }
+
+  /**
+   * Stops the current simulation and clears all displayed data
+   */
+  public stopSimulation(): void {
+    // Stop update loops
+    if (this.updateIntervalId !== null) {
+      clearInterval(this.updateIntervalId);
+      this.updateIntervalId = null;
+    }
+
+    if (this.mtcdUpdateIntervalId !== null) {
+      clearInterval(this.mtcdUpdateIntervalId);
+      this.mtcdUpdateIntervalId = null;
+    }
+
+    // Reset simulation
+    this.flightSimulation.resetSimulation();
+
+    // Clear all displayed elements
+    this.clearAllFlights();
+    this.clearAllMTCDCircles();
   }
 
   private startUpdateLoop = (): void => {
@@ -175,6 +203,7 @@ export class MapUi {
 
       // Display MTCD events as circles using middle_point from API
       mtcdEvents.forEach((event) => {
+        event.vertical_distance = (event.vertical_distance ?? 0) * 6076.12 // convert from NM to feets
         if (event.middle_point_lat && event.middle_point_lon) {
           const center: Position = [
             event.middle_point_lat,
@@ -230,7 +259,7 @@ export class MapUi {
         <li><b>Flight 1:</b> ${event.flight_id_1}</li>
         <li><b>Flight 2:</b> ${event.flight_id_2}</li>
         <li><b>Horizontal Distance:</b> ${event.horizontal_distance?.toFixed(2) ?? 'N/A'} NM</li>
-        <li><b>Vertical Distance:</b> ${event.vertical_distance?.toFixed(2) ?? 'N/A'} NM</li>
+        <li><b>Vertical Distance:</b> ${event.vertical_distance?.toFixed(2) ?? 'N/A'} feet</li>
         <li><b>Time to Closest Approach:</b> ${remainingTimeMinutes} minutes</li>
         <li><b>Detected At:</b> ${new Date(event.detected_at).toLocaleString()}</li>
       </ul>

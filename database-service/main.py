@@ -52,7 +52,7 @@ def get_active_mtcd_events() -> List[MTCDEventResponse]:
     finally:
         db.close()
 
-@app.get("/reset-for-new-simulation", status_code=status.HTTP_204_NO_CONTENT)
+@app.delete("/reset-for-new-simulation", status_code=status.HTTP_204_NO_CONTENT)
 def reset_db_for_new_simulation():
     """
     Reset database for new simulation - deletes all MTCD events, flights, and flight positions.

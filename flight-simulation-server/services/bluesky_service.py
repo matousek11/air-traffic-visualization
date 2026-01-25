@@ -64,9 +64,9 @@ class BlueskyService:
 
     @staticmethod
     def create_flight(flight: Flight) -> None:
-        print(f"Creating flight {flight.flight_id}...")
+        print(f"Creating flight {flight.get_creation_string()}...")
         stack.stack(flight.get_creation_string())
-        stack.stack(f"{flight.flight_id} VNAV ON")
+        stack.stack(flight.get_vertical_speed())
         stack.stack(f"{flight.flight_id} LNAV ON")
 
     def get_flight(self, flight_id: str) -> FlightWithFlightPlan|None:
@@ -80,7 +80,7 @@ class BlueskyService:
 
         lat = bs.traf.lat[idx]
         lon = bs.traf.lon[idx]
-        alt = bs.traf.alt[idx]
+        flight_level = bs.traf.alt[idx] * 0.03281 # from meters to fl
         hdg = bs.traf.hdg[idx]
         vertical_speed = bs.traf.vs[idx] * 3.28084 * 60  # m/s to ft/min
         gs = bs.traf.gs[idx] * 1.94384449 # from km/h to kts
@@ -90,7 +90,7 @@ class BlueskyService:
             plane_type=bs.traf.type[idx],
             lat=lat,
             lon=lon,
-            flight_level=int(alt),
+            flight_level=int(flight_level),
             heading=int(hdg),
             speed=int(gs),
             vertical_speed=int(vertical_speed),
@@ -105,7 +105,7 @@ class BlueskyService:
             acid = bs.traf.id[i]
             lat = bs.traf.lat[i]
             lon = bs.traf.lon[i]
-            alt = bs.traf.alt[i]
+            flight_level = bs.traf.alt[i] * 0.03281 # from meters to fl
             hdg = bs.traf.hdg[i]
             vertical_speed = bs.traf.vs[i] * 3.28084 * 60 # m/s to ft/min
             gs = bs.traf.gs[i] * 1.94384449 # from km/h to kts
@@ -116,7 +116,7 @@ class BlueskyService:
                     plane_type=bs.traf.type[i],
                     lat=lat,
                     lon=lon,
-                    flight_level=int(alt),
+                    flight_level=int(flight_level),
                     heading=int(hdg),
                     speed=int(gs),
                     vertical_speed=int(vertical_speed),

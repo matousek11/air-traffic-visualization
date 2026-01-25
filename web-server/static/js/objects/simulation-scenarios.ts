@@ -6,6 +6,7 @@ const PlanePositionSchema = z.object({
   speed: z.number().nonnegative(),
   vertical_speed: z.number(),
   heading: z.number().nonnegative(),
+  target_flight_level: z.number().nonnegative().nullable().optional().default(null),
   height: z.number().nonnegative(),
   position: PositionSchema,
 });
