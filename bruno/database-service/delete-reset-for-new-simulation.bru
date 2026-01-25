@@ -1,0 +1,15 @@
+meta {
+  name: /reset-for-new-simulation
+  type: http
+  seq: 2
+}
+
+delete {
+  url: http://localhost:8002/reset-for-new-simulation
+  body: none
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}

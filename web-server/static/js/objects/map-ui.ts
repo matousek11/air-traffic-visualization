@@ -2,21 +2,29 @@ import L from 'leaflet';
 import 'leaflet-rotatedmarker';
 import type { Flight, Position } from '../types/flight';
 import { FlightSimulation } from './flight-simulation';
+import {
+  BlueSkyDataProvider,
+  type ApiMTCDEventStructure,
+} from './blue-sky-data-provider';
 
 export class MapUi {
   private map: L.Map;
   private flightSimulation: FlightSimulation;
+  private blueSkyDataProvider: BlueSkyDataProvider;
   // Store references to markers and polylines for cleanup
   private flightMarkers: Map<string, L.Marker> = new Map();
   private flightPolylines: Map<string, L.Polyline[]> = new Map();
+  private mtcdCircles: Map<string, L.Circle> = new Map();
   private normalPlaneIcon: L.Icon;
   private warningPlaneIcon: L.Icon;
   private dangerPlaneIcon: L.Icon;
   private updateIntervalId: number | null = null;
+  private mtcdUpdateIntervalId: number | null = null;
 
   constructor() {
     this.map = L.map('map').setView([49.9, 14.0], 13);
     this.flightSimulation = new FlightSimulation();
+    this.blueSkyDataProvider = new BlueSkyDataProvider();
 
     // Dark tile layer (Carto)
     L.tileLayer(
@@ -53,7 +61,10 @@ export class MapUi {
     // remove flights from simulation then start new scenario
     this.flightSimulation.resetSimulation();
     this.flightSimulation.headCollisionTestScenario();
-    setTimeout(() => this.startUpdateLoop(), 5000);
+    setTimeout(() => {
+      this.startUpdateLoop();
+      this.startMTCDUpdateLoop();
+    }, 5000);
   }
 
   private startUpdateLoop = (): void => {
@@ -140,5 +151,91 @@ export class MapUi {
     });
 
     this.flightPolylines.set(flight.flightID, polylines);
+  }
+
+  private startMTCDUpdateLoop = (): void => {
+    if (this.mtcdUpdateIntervalId !== null) {
+      clearInterval(this.mtcdUpdateIntervalId);
+    }
+
+    void this.updateMTCDEvents();
+    this.mtcdUpdateIntervalId = setInterval(
+      (): void => void this.updateMTCDEvents(),
+      5000,
+    );
+  };
+
+  private async updateMTCDEvents(): Promise<void> {
+    try {
+      const mtcdEvents: ApiMTCDEventStructure[] =
+        await this.blueSkyDataProvider.getMTCDEvents();
+
+      // Clear existing MTCD circles
+      this.clearAllMTCDCircles();
+
+      // Display MTCD events as circles using middle_point from API
+      mtcdEvents.forEach((event) => {
+        if (event.middle_point_lat && event.middle_point_lon) {
+          const center: Position = [
+            event.middle_point_lat,
+            event.middle_point_lon,
+          ];
+          this.displayMTCDCircle(event, center);
+        }
+      });
+    } catch (error) {
+      console.error('Error updating MTCD events:', error);
+    }
+  }
+
+  private clearAllMTCDCircles(): void {
+    // Remove all MTCD circles
+    this.mtcdCircles.forEach((circle): void => {
+      this.map.removeLayer(circle);
+    });
+    this.mtcdCircles.clear();
+  }
+
+  private displayMTCDCircle(
+    event: ApiMTCDEventStructure,
+    center: Position,
+  ): void {
+    // Create unique key for this MTCD event
+    const circleKey = `${event.flight_id_1}-${event.flight_id_2}`;
+
+    // Remove existing circle if it exists
+    const existingCircle = this.mtcdCircles.get(circleKey);
+    if (existingCircle) {
+      this.map.removeLayer(existingCircle);
+    }
+
+    // 3 NM = 3 * 1852 meters = 5556 meters
+    const radiusMeters = 3 * 1852;
+
+    // Create circle
+    const circle = L.circle(center, {
+      radius: radiusMeters,
+      color: '#ff0000', // Red color
+      fillColor: '#ff0000',
+      fillOpacity: 0.2,
+      weight: 2,
+    }).addTo(this.map);
+
+    // Add popup with event information
+    const remainingTimeHours = event.remaining_time ?? 0;
+    const remainingTimeMinutes = Math.round(remainingTimeHours * 60);
+    circle.bindPopup(`
+      <h3>MTCD Event</h3>
+      <ul>
+        <li><b>Flight 1:</b> ${event.flight_id_1}</li>
+        <li><b>Flight 2:</b> ${event.flight_id_2}</li>
+        <li><b>Horizontal Distance:</b> ${event.horizontal_distance?.toFixed(2) ?? 'N/A'} NM</li>
+        <li><b>Vertical Distance:</b> ${event.vertical_distance?.toFixed(2) ?? 'N/A'} NM</li>
+        <li><b>Time to Closest Approach:</b> ${remainingTimeMinutes} minutes</li>
+        <li><b>Detected At:</b> ${new Date(event.detected_at).toLocaleString()}</li>
+      </ul>
+    `);
+
+    this.mtcdCircles.set(circleKey, circle);
   }
 }

@@ -3,21 +3,28 @@ Houses api for control of BlueSky simulation
 """
 
 from typing import List
+import logging
 
+import httpx
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from .services.bluesky_service import BlueskyService
-from .services.mtcd_toolkit import MtcdToolkit
+from common.helpers.mtcd_toolkit import MtcdToolkit
 from .models.flight import Flight
 from .models.flight_with_flight_plan import FlightWithFlightPlan
 from .models.waypoint import Waypoint
 from .models.closest_approach_point import ClosestApproachPoint
 
+logger = logging.getLogger(__name__)
+
 bluesky_service = BlueskyService()
 bluesky_service.start_simulation()
 bluesky_service.run_simulation_thread()
 
-mtcd_toolkit = MtcdToolkit(bluesky_service)
+mtcd_toolkit = MtcdToolkit()
+
+# Database service URL - can be configured via env variable
+DATABASE_SERVICE_URL = "http://localhost:8002"
 
 app = FastAPI()
 
@@ -68,11 +75,26 @@ def add_waypoint(flight_id: str, waypoint: Waypoint) -> Waypoint:
 
 
 @app.post("/reset-simulation")
-def reset_simulation():
+def reset_simulation() -> dict:
     """
-    Reset BlueSky simulation
+    Reset BlueSky simulation and database
     """
+    # Reset BlueSky simulation
     bluesky_service.reset_simulation()
+    
+    # Call database service to reset database
+    try:
+        with httpx.Client(timeout=10.0) as client:
+            response = client.delete(f"{DATABASE_SERVICE_URL}/reset-for-new-simulation")
+            response.raise_for_status()
+            logger.info("Database reset successfully")
+    except httpx.HTTPError as e:
+        logger.error(f"Failed to reset database: {e}")
+        # Don't fail the whole operation if database reset fails
+        # BlueSky is already reset
+    
+    return {"status": "success", "message": "Simulation and database reset"}
+    
 
 @app.get("/closest-approach-point")
 def get_closest_approach_point(
@@ -85,6 +107,21 @@ def get_closest_approach_point(
     if first_flight_id == second_flight_id:
         raise ValueError("First flight id must be different")
 
+    # Get flight objects from BlueSky service
+    flight_1 = bluesky_service.get_flight(first_flight_id)
+    flight_2 = bluesky_service.get_flight(second_flight_id)
+
+    if flight_1 is None:
+        raise HTTPException(status_code=404, detail=f"Flight {first_flight_id} not found")
+    if flight_2 is None:
+        raise HTTPException(status_code=404, detail=f"Flight {second_flight_id} not found")
+
+    # Calculate closest approach point
+    result = mtcd_toolkit.calculate_closest_approach_point(flight_1, flight_2)
+    
+    if result is None:
+        raise HTTPException(status_code=400, detail="Cannot calculate closest approach point")
+
     [
         horizontal_distance,
         vertical_distance,
@@ -92,9 +129,7 @@ def get_closest_approach_point(
         middle_point_lat,
         middle_point_lon,
         middle_point_fl,
-    ] = mtcd_toolkit.calculate_closest_approach_point(
-        first_flight_id, second_flight_id
-    )
+    ] = result
 
     return ClosestApproachPoint(
         first_flight_id=first_flight_id,

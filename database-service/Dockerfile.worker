@@ -1,0 +1,18 @@
+FROM python:3.12-slim
+
+WORKDIR /app
+
+# Copy requirements and install dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy application code
+COPY . .
+
+# Copy common from parent directory
+# These are mounted as volumes in docker-compose, but we need them for imports
+# Set PYTHONPATH to include parent directory
+ENV PYTHONPATH=/workspace:/app
+
+# Run worker
+CMD ["python", "-m", "run_worker"]

@@ -3,30 +3,49 @@ This module house calculations used to
 recognize possible conflicts between flights
 """
 import math
+from typing import Protocol
 
 import numpy as np
 from numpy import array
 
+from common.helpers.logging_service import LoggingService
 from common.helpers.physics_calculator import PhysicsCalculator
-from .bluesky_service import BlueskyService
+
+logger = LoggingService.get_logger(__name__)
+
+class FlightLike(Protocol):
+    """Protocol defining the interface for flight objects used in MTCD calculations."""
+    lat: float
+    lon: float
+    flight_level: int
+    speed: int
+    heading: int
+    vertical_speed: float
+
 
 class MtcdToolkit:
     """This class is responsible for MTCD evaluation"""
-    def __init__(self, blue_sky_service: BlueskyService):
-        self.blue_sky_service = blue_sky_service
+    def __init__(self):
         self.physics_calculator = PhysicsCalculator()
 
-    def calculate_closest_approach_point(self, flight_id_1, flight_id_2) \
-            -> tuple[float, float, float, float, float, float] | None:
-        """Calculates the closest approach point between two flights"""
-        # get flight objects
-        flight_1 = self.blue_sky_service.get_flight(flight_id_1)
-        flight_2 = self.blue_sky_service.get_flight(flight_id_2)
-
+    def calculate_closest_approach_point(
+        self, 
+        flight_1: FlightLike, 
+        flight_2: FlightLike
+    ) -> tuple[float, float, float, float, float, float] | None:
+        """
+        Calculates the closest approach point between two flights.
+        
+        Args:
+            flight_1: Flight object with attributes: lat, lon, flight_level, speed, heading, vertical_speed
+            flight_2: Flight object with attributes: lat, lon, flight_level, speed, heading, vertical_speed
+            
+        Returns:
+            Tuple of (horizontal_distance, vertical_distance, time_to_closest_approach,
+                     middle_point_lat, middle_point_lon, middle_point_fl) or None
+        """
         if flight_1 is None or flight_2 is None:
-            raise KeyError(
-                'Flight with flight_id_1 or flight_id_2 doesn\'t exists'
-            )
+            raise ValueError('Both flight objects must be provided')
 
         # position vector of flight 1
         # flight 1 used as reference point (NM)
@@ -76,6 +95,9 @@ class MtcdToolkit:
         )
         if speed_dot_product < 1e-10:
             # Aircraft have identical velocity vectors - no unique CPA exists
+            logger.info(vars(flight_1))
+            logger.info(vars(flight_2))
+            logger.info('Aircraft have identical velocity vectors')
             return None
 
         # calculate time to the closest approach of flights (hours)
@@ -86,6 +108,7 @@ class MtcdToolkit:
 
         if time_to_closest_approach < 0:
             # Closest point already passed
+            logger.info('Closest point of approach already passed')
             return None
 
         # calculate distance between flights in the closest approach point (NM)

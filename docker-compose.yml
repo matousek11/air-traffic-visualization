@@ -1,0 +1,89 @@
+name: "air-traffic-mtcd-visualization"
+
+services:
+  timescaledb:
+    build:
+      context: ./database-service
+      dockerfile: Dockerfile.timescale
+    container_name: mtcd-timescaledb
+    restart: unless-stopped
+
+    environment:
+      POSTGRES_DB: atm
+      POSTGRES_USER: atm_user
+      POSTGRES_PASSWORD: atm_password
+      TIMESCALEDB_TELEMETRY: "off"
+
+    ports:
+      - "5432:5432"
+
+    volumes:
+      - timescale_data:/var/lib/postgresql/data
+      - ./timescale-init:/docker-entrypoint-initdb.d
+
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U atm_user -d atm"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: mtcd-rabbitmq
+    restart: unless-stopped
+    ports:
+      - "5672:5672"      # AMQP port
+      - "15672:15672"    # Management UI
+    environment:
+      RABBITMQ_DEFAULT_USER: atm_user
+      RABBITMQ_DEFAULT_PASS: atm_password
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+  mtcd-worker:
+    build:
+      context: ./database-service
+      dockerfile: Dockerfile.worker
+    container_name: mtcd-worker
+    restart: unless-stopped
+    depends_on:
+      - timescaledb
+      - rabbitmq
+    environment:
+      DB_USER: atm_user
+      DB_PASS: atm_password
+      DB_HOST: timescaledb
+      DB_PORT: 5432
+      DB_NAME: atm
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USER: atm_user
+      RABBITMQ_PASS: atm_password
+    volumes:
+      - ./database-service:/app
+      - ./common:/workspace/common
+  database-api:
+    build:
+      context: ./database-service
+      dockerfile: Dockerfile.api
+    container_name: mtcd-database-api
+    restart: unless-stopped
+    depends_on:
+      - timescaledb
+    ports:
+      - "8002:8002"
+    environment:
+      DB_USER: atm_user
+      DB_PASS: atm_password
+      DB_HOST: timescaledb
+      DB_PORT: 5432
+      DB_NAME: atm
+    volumes:
+      - ./database-service:/app
+
+volumes:
+  timescale_data:
+  rabbitmq_data:

@@ -19,6 +19,20 @@ This software is visualizing places where collision predictions occurs frequentl
 
 ## Workers
 
+## Flight data synchronization
+1. `docker compose up -D`
+2. `cd database-service`
+3. `python3 -m venv venv`
+4. `source venv/bin/activate`
+5. `python3 -m pip install -r requirements.txt`
+6. `alembic upgrade head`
+7. `cd ..`
+8. `PYTHONPATH=. python3 database-service/sync_data.py`
+
+## Conflict check jobs creation
+1. be in root of project
+2. `PYTHONPATH=. python3 database-service/create_mtcd_event_check.py`
+
 # Dev tools
 ## Python codebase
 - linter `pylint --rcfile=pylint.rc .`

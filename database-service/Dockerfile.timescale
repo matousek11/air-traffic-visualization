@@ -1,0 +1,15 @@
+FROM timescale/timescaledb:latest-pg17
+
+# Install PostGIS extension for Alpine Linux
+RUN apk add --no-cache \
+        postgis \
+        postgis-doc && \
+    # Create symlinks so PostgreSQL can find PostGIS extensions and libraries
+    # PostgreSQL looks in /usr/local/share/postgresql/extension/ but PostGIS installs to /usr/share/postgresql/extension/
+    mkdir -p /usr/local/share/postgresql/extension && \
+    ln -s /usr/share/postgresql/extension/* /usr/local/share/postgresql/extension/ 2>/dev/null || true && \
+    # PostgreSQL looks in /usr/local/lib/postgresql/ but PostGIS installs to /usr/lib/postgresql17/
+    mkdir -p /usr/local/lib/postgresql && \
+    ln -s /usr/lib/postgresql17/postgis*.so /usr/local/lib/postgresql/ 2>/dev/null || true
+
+# The base image already handles the entrypoint and database initialization

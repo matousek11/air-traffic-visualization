@@ -1,0 +1,9 @@
+fastapi[standard]~=0.115.12
+sqlalchemy
+psycopg2-binary
+geoalchemy2
+alembic
+python-dotenv
+httpx
+numpy
+pika

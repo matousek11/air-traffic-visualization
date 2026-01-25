@@ -12,11 +12,26 @@ export type ApiFlightStructure = {
   flight_plan: Array<{ name: string; flight_level: number; speed: number }>;
 };
 
+export type ApiMTCDEventStructure = {
+  id: number;
+  flight_id_1: string;
+  flight_id_2: string;
+  detected_at: string; // ISO datetime string
+  horizontal_distance: number | null;
+  vertical_distance: number | null;
+  remaining_time: number | null;
+  middle_point_lat: number | null;
+  middle_point_lon: number | null;
+  active: boolean;
+  last_checked: string | null; // ISO datetime string
+};
+
 /**
  * Represents data communication between js client and BlueSky simulation backend
  */
 export class BlueSkyDataProvider {
   static readonly BASE_URL = 'http://localhost:8001';
+  static readonly DATABASE_API_BASE_URL = 'http://localhost:8002';
 
   /**
    * Adds new flight into the simulation
@@ -88,6 +103,26 @@ export class BlueSkyDataProvider {
       }
     } catch (error) {
       console.error('Error resetting simulation:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get all currently active MTCD events from database
+   */
+  public async getMTCDEvents(): Promise<ApiMTCDEventStructure[]> {
+    try {
+      const response = await fetch(
+        BlueSkyDataProvider.DATABASE_API_BASE_URL + '/mtcd-events',
+      );
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const mtcdEvents: ApiMTCDEventStructure[] = await response.json();
+      return mtcdEvents;
+    } catch (error) {
+      console.error('Error fetching MTCD events:', error);
       throw error;
     }
   }
