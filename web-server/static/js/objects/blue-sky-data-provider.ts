@@ -103,6 +103,35 @@ export class BlueSkyDataProvider {
   }
 
   /**
+   * Set simulation speed by increasing or decreasing by 1 unit
+   *
+   * @param increase true to increase speed, false to decrease
+   * @returns Promise that resolves to current speed multiplier value
+   */
+  public async setSimulationSpeed(increase: boolean): Promise<number> {
+    try {
+      const response = await fetch(BlueSkyDataProvider.BASE_URL + '/simulation/speed', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          increase: increase,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      console.log('set simulation speed response:', data);
+      return data.current_speed;
+    } catch (error) {
+      console.error('Error setting simulation speed:', error);
+      throw error;
+    }
+  }
+
+  /**
    * Get updated data about all flights
    */
   public async updateFlights(): Promise<FlightWithWind[]> {

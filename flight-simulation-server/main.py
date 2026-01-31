@@ -15,6 +15,7 @@ from .models.flight_detail_response import FlightDetailResponse
 from .models.waypoint import Waypoint
 from .models.closest_approach_point import ClosestApproachPoint
 from .models.wind import Wind
+from .models.speed_action import SpeedAction
 
 logger = logging.getLogger(__name__)
 
@@ -81,6 +82,16 @@ def set_wind(wind: Wind) -> Wind:
 
     return wind
 
+@app.post("/simulation/speed")
+def set_simulation_speed(action: SpeedAction) -> dict:
+    """Increase or decrease simulation speed by 1 unit"""
+    bluesky_service.set_speed(action.increase)
+    
+    return {
+        "status": "success", 
+        "action": "increase" if action.increase else "decrease",
+        "current_speed": bluesky_service.current_speed
+    }
 
 @app.post("/reset-simulation")
 def reset_simulation() -> dict:

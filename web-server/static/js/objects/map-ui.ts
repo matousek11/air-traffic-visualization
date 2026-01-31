@@ -268,4 +268,14 @@ export class MapUi {
 
     this.mtcdCircles.set(circleKey, circle);
   }
+
+  /**
+   * Set simulation speed by increasing or decreasing by 1 unit
+   *
+   * @param increase true to increase speed, false to decrease
+   * @returns Promise that resolves to current speed multiplier value
+   */
+  public async setSimulationSpeed(increase: boolean): Promise<number> {
+    return this.blueSkyDataProvider.setSimulationSpeed(increase);
+  }
 }

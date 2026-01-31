@@ -7,6 +7,7 @@ import { ScenarioModal } from './scenario-modal';
 export class AirTrafficVisualization {
   private readonly mapUi: MapUi;
   private readonly scenarioModal: ScenarioModal;
+  private currentSpeed: number = 1.0;
 
   /**
    * Automatically initialize web UI
@@ -16,6 +17,7 @@ export class AirTrafficVisualization {
     this.scenarioModal = new ScenarioModal();
     this.initHandlers();
     this.initModalCallbacks();
+    this.updateSpeedDisplay();
   }
 
   /**
@@ -24,6 +26,8 @@ export class AirTrafficVisualization {
   private initHandlers(): void {
     const uiHandlers: Record<string, () => void> = {
       'bottom-left-button': () => this.openScenarioModal(),
+      'speed-decrease': () => this.decreaseSpeed(),
+      'speed-increase': () => this.increaseSpeed(),
     };
 
     Object.entries(uiHandlers).forEach(([elementId, handler]): void => {
@@ -84,5 +88,39 @@ export class AirTrafficVisualization {
    */
   private stopSimulation(): void {
     this.mapUi.stopSimulation();
+  }
+
+  /**
+   * Decreases simulation speed by 1 unit
+   */
+  private decreaseSpeed(): void {
+    void this.mapUi.setSimulationSpeed(false).then((speed: number): void => {
+      this.currentSpeed = speed;
+      this.updateSpeedDisplay();
+    }).catch((error: Error): void => {
+      console.error('Error decreasing speed:', error);
+    });
+  }
+
+  /**
+   * Increases simulation speed by 1 unit
+   */
+  private increaseSpeed(): void {
+    void this.mapUi.setSimulationSpeed(true).then((speed: number): void => {
+      this.currentSpeed = speed;
+      this.updateSpeedDisplay();
+    }).catch((error: Error): void => {
+      console.error('Error increasing speed:', error);
+    });
+  }
+
+  /**
+   * Updates the speed display element with current speed
+   */
+  private updateSpeedDisplay(): void {
+    const speedDisplay = document.getElementById('speed-display');
+    if (speedDisplay !== null) {
+      speedDisplay.textContent = `${this.currentSpeed.toFixed(1)}x`;
+    }
   }
 }

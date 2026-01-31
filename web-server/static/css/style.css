@@ -40,6 +40,48 @@ body {
     background-color: #0056b3;
 }
 
+#speed-control {
+    position: fixed;
+    bottom: 20px;
+    left: 200px;
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background-color: rgba(0, 0, 0, 0.7);
+    padding: 8px 12px;
+    border-radius: 5px;
+}
+
+#speed-decrease,
+#speed-increase {
+    width: 30px;
+    height: 30px;
+    background-color: #007bff;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 18px;
+    font-weight: bold;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+#speed-decrease:hover,
+#speed-increase:hover {
+    background-color: #0056b3;
+}
+
+#speed-display {
+    color: white;
+    font-size: 16px;
+    font-weight: bold;
+    min-width: 50px;
+    text-align: center;
+}
+
 /* Scenario Modal Styles */
 .scenario-modal-overlay {
     position: fixed;

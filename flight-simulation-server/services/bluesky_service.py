@@ -9,11 +9,15 @@ import threading
 import bluesky as bs
 import numpy as np
 from bluesky import stack
+
+from common.helpers.logging_service import LoggingService
 from .flight_plan_service import FlightPlanService
 from ..models.flight import Flight
 from ..models.flight_detail_response import FlightDetailResponse
 from ..models.waypoint import Waypoint
 from ..models.wind import Wind
+
+logger = LoggingService.get_logger(__name__)
 
 class BlueskyService:
     """
@@ -25,6 +29,7 @@ class BlueskyService:
         self._running = False
         self._sim_thread = None
         self.flight_plan_service = FlightPlanService()
+        self.current_speed = 1.0
 
     def __del__(self):
         self.stop_simulation_thread()
@@ -37,20 +42,23 @@ class BlueskyService:
                 target=self.run_simulation_time, args=(interval,), daemon=True
             )
             self._sim_thread.start()
-            print("Simulation thread started.")
+            logger.info("Simulation thread started.")
 
-    def run_simulation_time(self, interval=1.0):
-        """Advance the simulation every `interval` seconds."""
+    def run_simulation_time(self, base_interval=0.05):
+        """Advance the simulation every `base_interval` seconds, adjusted by speed multiplier."""
         while self._running:
-            bs.sim.step()
-            time.sleep(interval)
+            steps = max(1, int(self.current_speed))
+            for _ in range(steps):
+                bs.sim.step()
+            
+            time.sleep(base_interval)
 
     def stop_simulation_thread(self):
         """Stops BlueSky simulation and reset it"""
         self._running = False
         if self._sim_thread:
             self._sim_thread.join()
-            print("Simulation thread stopped.")
+            logger.info("Simulation thread stopped.")
             self.flight_plan_service.reset()
 
     @staticmethod
@@ -62,22 +70,21 @@ class BlueskyService:
         """Reset BlueSky simulation"""
         stack.stack("RESET")
         self.flight_plan_service.reset()
-        print("Simulation reset")
+        logger.info("Simulation reset")
 
     @staticmethod
     def create_flight(flight: Flight) -> None:
-        print(f"Creating flight {flight.get_creation_string()}...")
+        logger.info(f"Creating flight {flight.get_creation_string()}...")
         stack.stack(flight.get_creation_string())
         stack.stack(flight.get_vertical_speed())
         stack.stack(f"{flight.flight_id} LNAV ON")
 
     def get_flight(self, flight_id: str) -> FlightDetailResponse | None:
         """Load one flight"""
-        print(bs.traf.id)
         try:
             idx = bs.traf.id.index(flight_id)
         except ValueError:
-            print(f"Aircraft {flight_id} not found")
+            logger.info(f"Aircraft {flight_id} not found")
             return None
 
         lat = bs.traf.lat[idx]
@@ -164,3 +171,14 @@ class BlueskyService:
     def set_wind(self, wind: Wind) -> None:
         """Sets wind conditions for the simulation"""
         stack.stack(f"WIND {wind.lat} {wind.lon} {wind.altitude} {wind.heading} {wind.speed}")
+
+    def set_speed(self, increase: bool) -> None:
+        """Decreases or increases the speed of the simulation by controlling loop frequency"""
+        if increase is True:
+            self.current_speed += 1.0
+        elif self.current_speed > 1.0:
+            self.current_speed -= 1.0
+        else:
+            return  # Cannot decrease below 1.0
+        
+        logger.info(f"Simulation speed set to {self.current_speed}x")
