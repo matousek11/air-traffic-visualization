@@ -1,6 +1,9 @@
 {
   "90DegreePlaneCollision": {
     "name": "90 degree imminent collision",
+    "winds": [
+      {"heading": 145, "speed": 100, "lat": 50, "lon": 14, "altitude": 10000}
+    ],
     "flights": [
       {
         "flightID": "CSA202",
@@ -36,6 +39,9 @@
   },
   "VerticalPlaneCollision": {
     "name": "Vertical plane collision",
+    "winds": [
+      {"heading": 0, "speed": 100, "lat": 50, "lon": 14, "altitude": 10000}
+    ],
     "flights": [
       {
         "flightID": "CSA202",

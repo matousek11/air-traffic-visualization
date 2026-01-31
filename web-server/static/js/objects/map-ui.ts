@@ -1,6 +1,6 @@
 import L from 'leaflet';
 import 'leaflet-rotatedmarker';
-import type { Flight, Position } from '../types/flight';
+import type { Flight, FlightWithWind, Position } from '../types/flight';
 import { FlightSimulation } from './flight-simulation';
 import {
   BlueSkyDataProvider,
@@ -108,9 +108,9 @@ export class MapUi {
   };
 
   private async updateFlights(): Promise<void> {
-    let flights: Flight[] = await this.flightSimulation.updateFlights();
+    let flights: FlightWithWind[] = await this.flightSimulation.updateFlights();
     this.clearAllFlights();
-    flights.forEach((flight: Flight) => this.displayPlaneWithRoute(flight));
+    flights.forEach((flight: FlightWithWind) => this.displayPlaneWithRoute(flight));
   }
 
   private clearAllFlights(): void {
@@ -156,6 +156,7 @@ export class MapUi {
                     <li><b>speed:</b> ${flight.planePosition.speed}kts</li>
                     <li><b>heading:</b> ${flight.planePosition.heading} degrees</li>
                     <li><b>height:</b> ${flight.planePosition.height} feet</li>
+                    <li><b>wind:</b> ${flight.wind.heading}/${flight.wind.speed}</li>
                 </ul>
             `);
 

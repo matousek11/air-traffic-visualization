@@ -27,6 +27,7 @@ class FlightPositionAdapter:
         self.flight_level = flight_position.flight_level if flight_position.flight_level else 0
         self.speed = flight_position.ground_speed_kt
         self.heading = flight_position.heading
+        self.track_heading = flight_position.track_heading
         # vertical_speed in ft/min (same as vertical_rate_fpm)
         self.vertical_speed = float(flight_position.vertical_rate_fpm or 0)
 
@@ -127,6 +128,7 @@ class CheckMtcdJob:
                 or position.flight_level is None
                 or position.ground_speed_kt is None
                 or position.heading is None
+                or position.track_heading is None
         ):
             logger.warning(
                 f"Incomplete position data for flights {flight_id}"

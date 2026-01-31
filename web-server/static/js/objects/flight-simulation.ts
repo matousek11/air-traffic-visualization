@@ -1,4 +1,4 @@
-import type { Flight } from '../types/flight';
+import type { FlightWithWind } from '../types/flight';
 import scenarios from '../../config/simulation-scenarios.json';
 import { SimulationScenarios } from './simulation-scenarios';
 import { BlueSkyDataProvider } from './blue-sky-data-provider';
@@ -16,7 +16,7 @@ export class FlightSimulation {
   /**
    * Get the newest data about flights from data provider
    */
-  public async updateFlights(): Promise<Flight[]> {
+  public async updateFlights(): Promise<FlightWithWind[]> {
     return this.blueSkyDataProvider.updateFlights();
   }
 
@@ -35,6 +35,10 @@ export class FlightSimulation {
   public loadScenario(scenarioName: string): void {
     const checkedScenarios = new SimulationScenarios(scenarios);
     const scenario = checkedScenarios.getScenario(scenarioName);
+
+    scenario.winds.forEach(
+      (wind): Promise<void> => this.blueSkyDataProvider.setWind(wind.heading, wind.speed, wind.lat, wind.lon, wind.altitude)
+    );
 
     scenario.flights.forEach(
       (flight): Promise<void> => this.blueSkyDataProvider.createFlight(flight),

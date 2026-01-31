@@ -143,6 +143,7 @@ class DataSynchronizer:
             flight_level=flight_data.get("flight_level"),
             ground_speed_kt=flight_data.get("speed"),
             heading=flight_data.get("heading"),
+            track_heading=flight_data.get("track_heading"),
             vertical_rate_fpm=int(flight_data.get("vertical_speed", 0)),
             sector_id='',  # Not available in API TODO: implement later on
             geom=geom,

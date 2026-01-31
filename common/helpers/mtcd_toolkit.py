@@ -19,7 +19,7 @@ class FlightLike(Protocol):
     lon: float
     flight_level: int
     speed: int
-    heading: int
+    track_heading: int
     vertical_speed: float
 
 
@@ -30,15 +30,15 @@ class MtcdToolkit:
 
     def calculate_closest_approach_point(
         self, 
-        flight_1: FlightLike, 
+        flight_1: FlightLike,
         flight_2: FlightLike
     ) -> tuple[float, float, float, float, float, float] | None:
         """
         Calculates the closest approach point between two flights.
         
         Args:
-            flight_1: Flight object with attributes: lat, lon, flight_level, speed, heading, vertical_speed
-            flight_2: Flight object with attributes: lat, lon, flight_level, speed, heading, vertical_speed
+            flight_1: Flight object with attributes: lat, lon, flight_level, speed, track_heading, vertical_speed
+            flight_2: Flight object with attributes: lat, lon, flight_level, speed, track_heading, vertical_speed
             
         Returns:
             Tuple of (horizontal_distance, vertical_distance, time_to_closest_approach,
@@ -53,7 +53,7 @@ class MtcdToolkit:
         # get speed vector of flight 1 (kts)
         flight_1_speed_vector = self.get_speed_vector(
             flight_1.speed,
-            flight_1.heading,
+            flight_1.track_heading,
             flight_1.vertical_speed
         )
 
@@ -76,7 +76,7 @@ class MtcdToolkit:
         # get speed vector of flight 2 (kts)
         flight_2_speed_vector = self.get_speed_vector(
             flight_2.speed,
-            flight_2.heading,
+            flight_2.track_heading,
             flight_2.vertical_speed
         )
 
@@ -150,7 +150,7 @@ class MtcdToolkit:
 
         return (
             horizontal_distance,
-            up_distance,
+            float(up_distance),
             time_to_closest_approach,
             middle_point_lat,
             middle_point_lon,
@@ -160,18 +160,18 @@ class MtcdToolkit:
     @staticmethod
     def get_speed_vector(
             ground_speed: int,
-            heading: int,
+            track_heading: int,
             vertical_speed: float
     ) -> array:
         """
         Decomposes ground speed and heading into ENU components
 
         :param ground_speed: Ground speed of flight (kts)
-        :param heading: Heading of flight in degrees (0° = North, clockwise)
+        :param track_heading: Heading of flight with wind components in degrees (0° = North, clockwise)
         :param vertical_speed: Vertical speed in ft/min
         :return: np.array([east, north, up]) speed vectors in kts
         """
-        heading_rad = np.deg2rad(heading)
+        heading_rad = np.deg2rad(track_heading)
 
         east = ground_speed * np.sin(heading_rad)  # East component
         north = ground_speed * np.cos(heading_rad)  # North component

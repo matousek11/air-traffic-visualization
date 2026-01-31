@@ -1,4 +1,4 @@
-import type { Flight, Position } from '../types/flight';
+import type { Flight, FlightWithWind, Position } from '../types/flight';
 
 export type ApiFlightStructure = {
   flight_id: string;
@@ -11,6 +11,7 @@ export type ApiFlightStructure = {
   vertical_speed: number;
   target_flight_level: number | null;
   flight_plan: Array<{ name: string; flight_level: number; speed: number }>;
+  wind: { heading: number; speed: number; lat: number; lon: number; altitude: number };
 };
 
 export type ApiMTCDEventStructure = {
@@ -68,9 +69,43 @@ export class BlueSkyDataProvider {
   }
 
   /**
+   * Set wind to simulation
+   *
+   * @param heading in degrees
+   * @param speed in kts
+   * @param lat latitude
+   * @param lon longitude
+   * @param altitude in feet
+   */
+  public async setWind(heading: number, speed: number, lat: number, lon: number, altitude: number): Promise<void> {
+    try {
+      const response = await fetch(BlueSkyDataProvider.BASE_URL + '/simulation/wind', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          heading: heading,
+          speed: speed,
+          lat: lat,
+          lon: lon,
+          altitude: altitude,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      console.log('create wind response:', data);
+    } catch (error) {
+      console.error('Error making request:', error);
+    }
+  }
+
+  /**
    * Get updated data about all flights
    */
-  public async updateFlights(): Promise<Flight[]> {
+  public async updateFlights(): Promise<FlightWithWind[]> {
     try {
       const response = await fetch(BlueSkyDataProvider.BASE_URL + '/flights');
       if (!response.ok) {
@@ -130,12 +165,13 @@ export class BlueSkyDataProvider {
   }
 
   /**
-   * Converts Flight structure from API response to JS client Flight
+   * Converts Flight structure from API response to JS client FlightWithWind
    *
    * @param api_flight Data to be converted into JS structure
    */
-  private mapApiFlightToFlight(api_flight: ApiFlightStructure): Flight {
+  private mapApiFlightToFlight(api_flight: ApiFlightStructure): FlightWithWind {
     const currentPos: Position = [api_flight.lat, api_flight.lon];
+    api_flight.wind.speed = Math.trunc(api_flight.wind.speed)
 
     return {
       flightID: api_flight.flight_id,
@@ -149,6 +185,7 @@ export class BlueSkyDataProvider {
         position: currentPos,
       },
       flightPositions: [currentPos],
+      wind: api_flight.wind
     };
   }
 }

@@ -18,8 +18,17 @@ const FlightSchema = z.object({
   flightPositions: z.array(PositionSchema),
 });
 
+const WindSchema = z.object({
+  heading: z.number().nonnegative(),
+  speed: z.number().nonnegative(),
+  lat: z.number(),
+  lon: z.number(),
+  altitude: z.number().nonnegative(),
+});
+
 const SimulationScenarioSchema = z.object({
   name: z.string().min(1),
+  winds: z.array(WindSchema).optional().default([]),
   flights: z.array(FlightSchema).min(1),
 });
 

@@ -1,0 +1,25 @@
+meta {
+  name: /simulation/wind
+  type: http
+  seq: 4
+}
+
+post {
+  url: http://localhost:8001/simulation/wind
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "heading": 90,
+    "speed": 20,
+    "lat": 50,
+    "lon": 14,
+    "altitude": 10000
+  }
+}

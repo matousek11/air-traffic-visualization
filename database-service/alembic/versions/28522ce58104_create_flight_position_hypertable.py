@@ -29,6 +29,7 @@ def upgrade() -> None:
         sa.Column("flight_level", sa.Integer),
         sa.Column("ground_speed_kt", sa.Integer),
         sa.Column("heading", sa.Integer),
+        sa.Column("track_heading", sa.Integer),
         sa.Column("vertical_rate_fpm", sa.Integer),
         sa.Column("sector_id", sa.Text),
         sa.Column(

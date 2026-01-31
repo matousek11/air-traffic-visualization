@@ -7,11 +7,13 @@ import time
 import threading
 
 import bluesky as bs
+import numpy as np
 from bluesky import stack
 from .flight_plan_service import FlightPlanService
 from ..models.flight import Flight
-from ..models.flight_with_flight_plan import FlightWithFlightPlan
+from ..models.flight_detail_response import FlightDetailResponse
 from ..models.waypoint import Waypoint
+from ..models.wind import Wind
 
 class BlueskyService:
     """
@@ -69,7 +71,7 @@ class BlueskyService:
         stack.stack(flight.get_vertical_speed())
         stack.stack(f"{flight.flight_id} LNAV ON")
 
-    def get_flight(self, flight_id: str) -> FlightWithFlightPlan|None:
+    def get_flight(self, flight_id: str) -> FlightDetailResponse | None:
         """Load one flight"""
         print(bs.traf.id)
         try:
@@ -82,22 +84,31 @@ class BlueskyService:
         lon = bs.traf.lon[idx]
         flight_level = bs.traf.alt[idx] * 0.03281 # from meters to fl
         hdg = bs.traf.hdg[idx]
+        track_heading = bs.traf.trk[idx]
         vertical_speed = bs.traf.vs[idx] * 3.28084 * 60  # m/s to ft/min
         gs = bs.traf.gs[idx] * 1.94384449 # from km/h to kts
         flight_plan = self.flight_plan_service.get_flight_plan(flight_id)
-        return FlightWithFlightPlan(
+        # Get wind on position of plane (getdata returns windnorth, windeast)
+        alt_ft = int(bs.traf.alt[idx] * 3.28084)
+        windnorth, windeast = bs.traf.wind.getdata(bs.traf.lat[idx], bs.traf.lon[idx], bs.traf.alt[idx])
+        wind_speed = np.sqrt(windnorth ** 2 + windeast ** 2) * 1.944
+        # Wind FROM direction: arctan2(-east, -north) for aviation bearing
+        wind_heading = (np.degrees(np.arctan2(-windeast, -windnorth)) + 360) % 360
+        return FlightDetailResponse(
             flight_id=flight_id,
             plane_type=bs.traf.type[idx],
             lat=lat,
             lon=lon,
             flight_level=int(flight_level),
             heading=int(hdg),
+            track_heading=int(track_heading),
             speed=int(gs),
             vertical_speed=int(vertical_speed),
-            flight_plan=flight_plan
+            flight_plan=flight_plan,
+            wind=Wind(heading=wind_heading, speed=wind_speed, lat=lat, lon=lon, altitude=alt_ft)
         )
 
-    def get_flights(self) -> List[FlightWithFlightPlan]:
+    def get_flights(self) -> List[FlightDetailResponse]:
         """Loads all flights"""
         flights = []
 
@@ -107,20 +118,29 @@ class BlueskyService:
             lon = bs.traf.lon[i]
             flight_level = bs.traf.alt[i] * 0.03281 # from meters to fl
             hdg = bs.traf.hdg[i]
+            track_heading = bs.traf.trk[i]
             vertical_speed = bs.traf.vs[i] * 3.28084 * 60 # m/s to ft/min
             gs = bs.traf.gs[i] * 1.94384449 # from km/h to kts
             flight_plan = self.flight_plan_service.get_flight_plan(acid)
+            # Get wind on position of plane (getdata returns windnorth, windeast)
+            alt_ft = int(bs.traf.alt[i] * 3.28084)
+            windnorth, windeast = bs.traf.wind.getdata(bs.traf.lat[i], bs.traf.lon[i], bs.traf.alt[i])
+            wind_speed = np.sqrt(windnorth ** 2 + windeast ** 2) * 1.944
+            # Wind FROM direction: arctan2(-east, -north) for aviation bearing
+            wind_heading = (np.degrees(np.arctan2(-windeast, -windnorth)) + 360) % 360
             flights.append(
-                FlightWithFlightPlan(
+                FlightDetailResponse(
                     flight_id=acid,
                     plane_type=bs.traf.type[i],
                     lat=lat,
                     lon=lon,
                     flight_level=int(flight_level),
                     heading=int(hdg),
+                    track_heading=int(track_heading),
                     speed=int(gs),
                     vertical_speed=int(vertical_speed),
-                    flight_plan=flight_plan
+                    flight_plan=flight_plan,
+                    wind=Wind(heading=wind_heading, speed=wind_speed, lat=lat, lon=lon, altitude=alt_ft)
                 )
             )
 
@@ -140,3 +160,7 @@ class BlueskyService:
         )
 
         return waypoint
+
+    def set_wind(self, wind: Wind) -> None:
+        """Sets wind conditions for the simulation"""
+        stack.stack(f"WIND {wind.lat} {wind.lon} {wind.altitude} {wind.heading} {wind.speed}")

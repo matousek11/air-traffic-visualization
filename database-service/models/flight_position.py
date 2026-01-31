@@ -23,6 +23,7 @@ class FlightPosition(Base):
     flight_level = Column(Integer, nullable=True)
     ground_speed_kt = Column(Integer, nullable=True)
     heading = Column(Integer, nullable=True)
+    track_heading = Column(Integer, nullable=True)
     vertical_rate_fpm = Column(Integer, nullable=True)
     sector_id = Column(Text, nullable=True)
     geom = Column(

@@ -11,9 +11,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from .services.bluesky_service import BlueskyService
 from common.helpers.mtcd_toolkit import MtcdToolkit
 from .models.flight import Flight
-from .models.flight_with_flight_plan import FlightWithFlightPlan
+from .models.flight_detail_response import FlightDetailResponse
 from .models.waypoint import Waypoint
 from .models.closest_approach_point import ClosestApproachPoint
+from .models.wind import Wind
 
 logger = logging.getLogger(__name__)
 
@@ -47,11 +48,11 @@ def add_flight(flight: Flight) -> Flight:
 
 @app.get(
     "/flights",
-    response_model=List[FlightWithFlightPlan]|FlightWithFlightPlan
+    response_model=List[FlightDetailResponse] | FlightDetailResponse
 )
 def get_flight(
         flight_id: str|None = None
-) -> List[FlightWithFlightPlan]|FlightWithFlightPlan:
+) -> List[FlightDetailResponse] | FlightDetailResponse:
     """
     Lists all currently running flight in BlueSky
     """
@@ -72,6 +73,13 @@ def add_waypoint(flight_id: str, waypoint: Waypoint) -> Waypoint:
     bluesky_service.add_waypoint(flight_id, waypoint)
 
     return waypoint
+
+@app.post("/simulation/wind")
+def set_wind(wind: Wind) -> Wind:
+    """Sets wind conditions for the simulation"""
+    bluesky_service.set_wind(wind)
+
+    return wind
 
 
 @app.post("/reset-simulation")
