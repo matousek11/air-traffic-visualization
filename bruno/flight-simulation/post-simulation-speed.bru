@@ -1,0 +1,21 @@
+meta {
+  name: /simulation/speed
+  type: http
+  seq: 5
+}
+
+post {
+  url: http://localhost:8001/simulation/speed
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "increase": true
+  }
+}
