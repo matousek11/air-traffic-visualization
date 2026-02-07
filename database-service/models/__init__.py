@@ -8,5 +8,9 @@ Base = declarative_base()
 from .mtcd_event import MTCDEvent
 from .flight import Flight
 from .flight_position import FlightPosition
+from .fix import Fix
+from .airway import Airway
+from .airport import Airport
+from .nav import Nav
 
-__all__ = ["Base", "MTCDEvent", "Flight", "FlightPosition"]
+__all__ = ["Base", "MTCDEvent", "Flight", "FlightPosition", "Fix", "Airway", "Airport", "Nav"]

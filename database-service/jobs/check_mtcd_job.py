@@ -1,10 +1,9 @@
 from datetime import datetime, timezone
 from typing import Any, Dict, Tuple
 
-from sqlalchemy import desc
-
 from common.helpers.logging_service import LoggingService
-from models import MTCDEvent, FlightPosition
+from models import MTCDEvent
+from repositories.flight_position_repository import FlightPositionRepository
 from services.database import SessionLocal
 from common.helpers.mtcd_toolkit import MtcdToolkit
 
@@ -57,8 +56,14 @@ class CheckMtcdJob:
 
     def execute(self, job_data: Dict[str, Any]) -> bool:
         flight_id_1, flight_id_2 = self._validate_data(job_data)
-        flight_1_position = self._get_newest_position(flight_id_1)
-        flight_2_position = self._get_newest_position(flight_id_2)
+        flight_1_position = FlightPositionAdapter(
+            FlightPositionRepository.get_latest_position(flight_id_1),
+            flight_id_1
+        )
+        flight_2_position = FlightPositionAdapter(
+            FlightPositionRepository.get_latest_position(flight_id_2),
+            flight_id_2
+        )
 
         result = self.mtcd_toolkit.calculate_closest_approach_point(
             flight_1_position, flight_2_position
@@ -104,39 +109,6 @@ class CheckMtcdJob:
             return None
 
         return flight_id_1, flight_id_2
-
-    def _get_newest_position(self, flight_id: str) -> FlightPositionAdapter | None:
-        """Loads newest position from database"""
-        db = SessionLocal()
-        try:
-            position = (
-                db.query(FlightPosition)
-                .filter(FlightPosition.flight_id == flight_id)
-                .order_by(desc(FlightPosition.ts))
-                .first()
-            )
-        except Exception as e:
-            logger.error(f"Error processing MTCD conflict check: {e}", exc_info=True)
-            db.rollback()
-            return None
-        finally:
-            db.close()
-
-        if (
-                position.lat is None
-                or position.lon is None
-                or position.flight_level is None
-                or position.ground_speed_kt is None
-                or position.heading is None
-                or position.track_heading is None
-        ):
-            logger.warning(
-                f"Incomplete position data for flights {flight_id}"
-            )
-            logger.warning(position)
-            return None
-
-        return FlightPositionAdapter(position, flight_id)
 
     def _is_conflict(
             self,
