@@ -151,7 +151,7 @@ class MtcdToolkit:
         return (
             horizontal_distance,
             float(up_distance),
-            time_to_closest_approach,
+            float(time_to_closest_approach),
             middle_point_lat,
             middle_point_lon,
             middle_point_fl

@@ -1,4 +1,4 @@
-import type { Flight, FlightWithWind, Position } from '../types/flight';
+import type { Flight, FlightWithWind, Position, NavigationWaypoint } from '../types/flight';
 
 export type ApiFlightStructure = {
   flight_id: string;
@@ -63,8 +63,51 @@ export class BlueSkyDataProvider {
 
       const data = await response.json();
       console.log('create flight response:', data);
+
+      // Add waypoints from route if provided
+      if (flight.route && flight.route.length > 0) {
+        for (const waypoint of flight.route) {
+          await this.addNavigationWaypoint(flight.flightID, waypoint);
+        }
+      }
     } catch (error) {
       console.error('Error making request:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Adds a navigation waypoint to a flight's flight plan
+   * @param flightId ID of the flight
+   * @param navigationWaypoint NavigationWaypoint to add
+   */
+  public async addNavigationWaypoint(
+    flightId: string,
+    navigationWaypoint: NavigationWaypoint
+  ): Promise<void> {
+    try {
+      const response = await fetch(
+        `${BlueSkyDataProvider.BASE_URL}/flights/${flightId}/waypoints`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: navigationWaypoint.name,
+            flight_level: navigationWaypoint.flight_level,
+            speed: navigationWaypoint.speed,
+          }),
+        },
+      );
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      console.log('add waypoint response:', data);
+    } catch (error) {
+      console.error('Error adding waypoint:', error);
+      throw error;
     }
   }
 
@@ -99,6 +142,27 @@ export class BlueSkyDataProvider {
       console.log('create wind response:', data);
     } catch (error) {
       console.error('Error making request:', error);
+    }
+  }
+
+  /**
+   * Get current simulation speed
+   *
+   * @returns Promise that resolves to current speed multiplier value
+   */
+  public async getSimulationSpeed(): Promise<number> {
+    try {
+      const response = await fetch(BlueSkyDataProvider.BASE_URL + '/simulation/speed');
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      return data.current_speed;
+    } catch (error) {
+      console.error('Error getting simulation speed:', error);
+      throw error;
     }
   }
 
@@ -142,8 +206,8 @@ export class BlueSkyDataProvider {
       }
 
       const apiFlights: ApiFlightStructure[] = await response.json();
-      return apiFlights.map((apiFlight) =>
-        this.mapApiFlightToFlight(apiFlight),
+      return Promise.all(
+        apiFlights.map((apiFlight) => this.mapApiFlightToFlight(apiFlight)),
       );
     } catch (error) {
       console.error('Error updating flights:', error);
@@ -194,15 +258,69 @@ export class BlueSkyDataProvider {
   }
 
   /**
+   * Gets waypoint coordinates from database service
+   *
+   * @param name Waypoint name/identifier
+   * @param lat Latitude of aircraft position
+   * @param lon Longitude of aircraft position
+   * @returns Promise resolving to coordinates or null if not found
+   */
+  public async getWaypointCoordinates(
+    name: string,
+    lat: number,
+    lon: number,
+  ): Promise<{ lat: number; lon: number } | null> {
+    try {
+      const url = `${BlueSkyDataProvider.DATABASE_API_BASE_URL}/waypoints/${encodeURIComponent(name)}?lat=${lat}&lon=${lon}`;
+
+      const response = await fetch(url);
+
+      if (!response.ok) {
+        if (response.status === 404) {
+          return null;
+        }
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      return { lat: data.lat, lon: data.lon };
+    } catch (error) {
+      console.error(`Error fetching waypoint coordinates for ${name}:`, error);
+      return null;
+    }
+  }
+
+  /**
    * Converts Flight structure from API response to JS client FlightWithWind
    *
    * @param api_flight Data to be converted into JS structure
    */
-  private mapApiFlightToFlight(api_flight: ApiFlightStructure): FlightWithWind {
+  private async mapApiFlightToFlight(api_flight: ApiFlightStructure): Promise<FlightWithWind> {
     const currentPos: Position = [api_flight.lat, api_flight.lon];
     api_flight.wind.speed = Math.trunc(api_flight.wind.speed)
 
-    return {
+    // Get waypoint coordinates if flight_plan exists
+    let flightPlan: NavigationWaypoint[] | undefined = undefined;
+    if (api_flight.flight_plan && api_flight.flight_plan.length > 0) {
+      flightPlan = await Promise.all(
+        api_flight.flight_plan.map(async (waypoint) => {
+          const coords = await this.getWaypointCoordinates(
+            waypoint.name,
+            api_flight.lat,
+            api_flight.lon,
+          );
+          
+          return {
+            name: waypoint.name,
+            flight_level: waypoint.flight_level,
+            speed: waypoint.speed,
+            ...(coords ? { lat: coords.lat, lon: coords.lon } : {}),
+          };
+        }),
+      );
+    }
+
+    const result: FlightWithWind = {
       flightID: api_flight.flight_id,
       planeType: api_flight.plane_type,
       planePosition: {
@@ -214,7 +332,13 @@ export class BlueSkyDataProvider {
         position: currentPos,
       },
       flightPositions: [currentPos],
-      wind: api_flight.wind
+      wind: api_flight.wind,
     };
+
+    if (flightPlan !== undefined) {
+      result.flightPlan = flightPlan;
+    }
+
+    return result;
   }
 }

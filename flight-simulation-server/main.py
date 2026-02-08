@@ -82,6 +82,13 @@ def set_wind(wind: Wind) -> Wind:
 
     return wind
 
+@app.get("/simulation/speed")
+def get_simulation_speed() -> dict:
+    """Get current simulation speed"""
+    return {
+        "current_speed": bluesky_service.current_speed
+    }
+
 @app.post("/simulation/speed")
 def set_simulation_speed(action: SpeedAction) -> dict:
     """Increase or decrease simulation speed by 1 unit"""

@@ -1,5 +1,13 @@
 export type Position = [number, number];
 
+export type NavigationWaypoint = {
+  name: string;
+  flight_level: number;
+  speed: number;
+  lat?: number;
+  lon?: number;
+};
+
 export type PlanePosition = {
   speed: number;
   vertical_speed: number;
@@ -25,6 +33,7 @@ export type Flight = {
   planeType: string;
   planePosition: PlanePosition;
   flightPositions: Position[];
+  route?: NavigationWaypoint[];
 };
 
 /**
@@ -32,4 +41,5 @@ export type Flight = {
  */
 export type FlightWithWind = Flight & {
   wind: Wind;
+  flightPlan?: NavigationWaypoint[];
 };

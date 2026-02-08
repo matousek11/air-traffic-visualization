@@ -2,6 +2,12 @@ import { z } from 'zod';
 
 const PositionSchema = z.tuple([z.number(), z.number()]);
 
+const NavigationWaypointSchema = z.object({
+  name: z.string().min(1),
+  flight_level: z.number().nonnegative(),
+  speed: z.number().nonnegative(),
+});
+
 const PlanePositionSchema = z.object({
   speed: z.number().nonnegative(),
   vertical_speed: z.number(),
@@ -16,6 +22,7 @@ const FlightSchema = z.object({
   planeType: z.string().min(1),
   planePosition: PlanePositionSchema,
   flightPositions: z.array(PositionSchema),
+  route: z.array(NavigationWaypointSchema).optional(),
 });
 
 const WindSchema = z.object({

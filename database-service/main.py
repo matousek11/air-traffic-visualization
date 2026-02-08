@@ -5,8 +5,9 @@ Exposes endpoints for querying MTCD events and other database data.
 
 from typing import List
 
-from fastapi import FastAPI, HTTPException, status
+from fastapi import FastAPI, HTTPException, Query, status
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from models import Flight, FlightPosition, MTCDEvent
@@ -72,6 +73,65 @@ def reset_db_for_new_simulation():
     finally:
         db.close()
 
+
+@app.get("/waypoints/{name}")
+def get_waypoint(
+    name: str,
+    lat: float = Query(..., description="Latitude of aircraft position"),
+    lon: float = Query(..., description="Longitude of aircraft position"),
+) -> dict:
+    """
+    Get waypoint coordinates by name, searching in both fix and nav tables.
+    
+    Args:
+        name: Waypoint identifier/name
+        lat: Latitude of aircraft position
+        lon: Longitude of aircraft position
+    
+    Returns:
+        Dictionary with name, lat, and lon
+    
+    Raises:
+        HTTPException 404: If waypoint not found
+    """
+    query = text("""
+        WITH combined AS (
+            SELECT identificator AS name, lat, lon, geom, 0 AS source_ord
+            FROM fix WHERE identificator = :name
+            UNION ALL
+            SELECT identificator, lat, lon, geom, 1
+            FROM nav WHERE identificator = :name
+        )
+        SELECT name, lat, lon
+        FROM combined
+        ORDER BY
+            (geom IS NOT NULL) DESC,
+            ST_Distance(
+                COALESCE(geom, ST_SetSRID(ST_MakePoint(lon, lat), 4326)::geography),
+                ST_SetSRID(ST_MakePoint(:lon, :lat), 4326)::geography
+            ) ASC NULLS LAST,
+            source_ord ASC
+        LIMIT 1;
+    """)
+    db: Session = SessionLocal()
+    try:
+        result = db.execute(query, {"name": name, "lat": lat, "lon": lon})
+        row = result.fetchone()
+        if row is None:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Waypoint '{name}' not found in fix or nav tables"
+            )
+        return {"name": row.name, "lat": row.lat, "lon": row.lon}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error fetching waypoint: {str(e)}"
+        )
+    finally:
+        db.close()
 
 @app.get("/health")
 def health_check():

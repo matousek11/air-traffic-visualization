@@ -17,7 +17,21 @@ export class AirTrafficVisualization {
     this.scenarioModal = new ScenarioModal();
     this.initHandlers();
     this.initModalCallbacks();
-    this.updateSpeedDisplay();
+    this.loadSimulationSpeed();
+  }
+
+  /**
+   * Load current simulation speed from server and update display
+   */
+  private loadSimulationSpeed(): void {
+    void this.mapUi.getSimulationSpeed().then((speed: number): void => {
+      this.currentSpeed = speed;
+      this.updateSpeedDisplay();
+    }).catch((error: Error): void => {
+      console.error('Error loading simulation speed:', error);
+      // Keep default value if request fails
+      this.updateSpeedDisplay();
+    });
   }
 
   /**

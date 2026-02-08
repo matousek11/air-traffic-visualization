@@ -145,5 +145,84 @@
         "flightPositions": []
       }
     ]
+  },
+  "IntersectingRoutes": {
+    "name": "Intersecting routes over Czech Republic",
+    "flights": [
+      {
+        "flightID": "CSA301",
+        "planeType": "A320",
+        "planePosition": {
+          "speed": 250,
+          "vertical_speed": 0,
+          "heading": 90,
+          "height": 100,
+          "position": [
+            50.072778,
+            11.630556
+          ]
+        },
+        "route": [
+          {
+            "name": "KULOK",
+            "flight_level": 100,
+            "speed": 250
+          },
+          {
+            "name": "ABERU",
+            "flight_level": 100,
+            "speed": 250
+          },
+          {
+            "name": "BALTU",
+            "flight_level": 100,
+            "speed": 250
+          },
+          {
+            "name": "ETATU",
+            "flight_level": 100,
+            "speed": 250
+          }
+        ],
+        "flightPositions": []
+      },
+      {
+        "flightID": "EZY502",
+        "planeType": "A320",
+        "planePosition": {
+          "speed": 230,
+          "vertical_speed": 0,
+          "heading": 180,
+          "height": 100,
+          "position": [
+            50.893333,
+            13.709167
+          ]
+        },
+        "route": [
+          {
+            "name": "LISBA",
+            "flight_level": 100,
+            "speed": 230
+          },
+          {
+            "name": "ABKIS",
+            "flight_level": 100,
+            "speed": 230
+          },
+          {
+            "name": "BALTU",
+            "flight_level": 100,
+            "speed": 230
+          },
+          {
+            "name": "ELMEK",
+            "flight_level": 100,
+            "speed": 230
+          }
+        ],
+        "flightPositions": []
+      }
+    ]
   }
 }
