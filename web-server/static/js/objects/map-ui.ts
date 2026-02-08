@@ -14,10 +14,18 @@ export class MapUi {
   // Store references to markers and polylines for cleanup
   private flightMarkers: Map<string, L.Marker> = new Map();
   private flightPolylines: Map<string, L.Polyline[]> = new Map();
+  private flightWaypointMarkers: Map<string, L.Marker[]> = new Map();
   private mtcdCircles: Map<string, L.Circle> = new Map();
+  // Store flight IDs that have active MTCD events
+  private flightsWithMTCD: Set<string> = new Set();
+  // Flight IDs selected by user (show route on click, hide on second click)
+  private selectedFlightIds: Set<string> = new Set();
+  // Last known flight data for drawing route on selection without re-fetch
+  private lastFlights: Map<string, FlightWithWind> = new Map();
   private normalPlaneIcon: L.Icon;
   private warningPlaneIcon: L.Icon;
   private dangerPlaneIcon: L.Icon;
+  private waypointTriangleIcon: L.DivIcon;
   private updateIntervalId: number | null = null;
   private mtcdUpdateIntervalId: number | null = null;
 
@@ -55,6 +63,12 @@ export class MapUi {
       iconSize: [40, 40],
       iconAnchor: [20, 20],
     });
+    this.waypointTriangleIcon = L.divIcon({
+      className: 'waypoint-triangle-icon',
+      html: `<svg width="12" height="12" viewBox="0 0 12 12" xmlns="http://www.w3.org/2000/svg"><path d="M6 0 L12 12 L0 12 Z" fill="#9ca3af" stroke="none"/></svg>`,
+      iconSize: [12, 12],
+      iconAnchor: [6, 12],
+    });
   }
 
   /**
@@ -90,6 +104,8 @@ export class MapUi {
     // Reset simulation
     this.flightSimulation.resetSimulation();
 
+    this.selectedFlightIds.clear();
+    this.lastFlights.clear();
     // Clear all displayed elements
     this.clearAllFlights();
     this.clearAllMTCDCircles();
@@ -108,9 +124,35 @@ export class MapUi {
   };
 
   private async updateFlights(): Promise<void> {
-    let flights: FlightWithWind[] = await this.flightSimulation.updateFlights();
+    const flights: FlightWithWind[] = await this.flightSimulation.updateFlights();
+    this.lastFlights = new Map(flights.map((f) => [f.flightID, f]));
+    // delete selected flight that doesn't exist
+    this.selectedFlightIds.forEach((id) => {
+      if (!flights.some((f) => f.flightID === id)) {
+        this.selectedFlightIds.delete(id);
+      }
+    });
+    const flightIdsWithOpenPopup = new Set<string>();
+    // save whether flight have open pop up
+    this.flightMarkers.forEach((marker, flightID) => {
+      const popup = marker.getPopup();
+      if (popup?.isOpen?.()) {
+        flightIdsWithOpenPopup.add(flightID);
+      }
+    });
     this.clearAllFlights();
     flights.forEach((flight: FlightWithWind) => this.displayPlaneWithRoute(flight));
+    // open pop up for selected flights
+    flightIdsWithOpenPopup.forEach((flightID) => {
+      if (!this.selectedFlightIds.has(flightID)) {
+        return;
+      }
+
+      const marker = this.flightMarkers.get(flightID);
+      if (marker) {
+        marker.openPopup();
+      }
+    });
   }
 
   private clearAllFlights(): void {
@@ -127,9 +169,14 @@ export class MapUi {
       });
     });
     this.flightPolylines.clear();
+
+    this.flightWaypointMarkers.forEach((markers): void => {
+      markers.forEach((marker) => this.map.removeLayer(marker));
+    });
+    this.flightWaypointMarkers.clear();
   }
 
-  private displayPlaneWithRoute(flight: Flight): void {
+  private displayPlaneWithRoute(flight: FlightWithWind): void {
     // Remove existing marker if it exists
     const existingMarker = this.flightMarkers.get(flight.flightID);
     if (existingMarker) {
@@ -146,11 +193,17 @@ export class MapUi {
 
     // Create new marker
     const rotationAngle = flight.planePosition.heading;
+    // Use warning icon (orange) if flight has active MTCD, otherwise use normal icon
+    const icon = this.flightsWithMTCD.has(flight.flightID) 
+      ? this.warningPlaneIcon 
+      : this.normalPlaneIcon;
     const marker = L.marker(flight.planePosition.position, {
-      icon: this.normalPlaneIcon,
+      icon: icon,
       rotationAngle: rotationAngle,
       rotationOrigin: 'center center',
-    }).addTo(this.map).bindPopup(`
+    })
+      .addTo(this.map)
+      .bindPopup(`
                 <h3>${flight.flightID}</h3>
                 <ul>
                     <li><b>speed:</b> ${flight.planePosition.speed}kts</li>
@@ -158,26 +211,113 @@ export class MapUi {
                     <li><b>height:</b> ${flight.planePosition.height} feet</li>
                     <li><b>wind:</b> ${flight.wind.heading}/${flight.wind.speed}</li>
                 </ul>
-            `);
+            `)
+      .on('click', () => this.toggleFlightSelection(flight.flightID));
 
     this.flightMarkers.set(flight.flightID, marker);
 
-    // Draw route
-    const polylines: L.Polyline[] = [];
-    flight.flightPositions.forEach((startPosition, key) => {
-      if (flight.flightPositions[key + 1] === undefined) {
-        return;
+    if (this.selectedFlightIds.has(flight.flightID)) {
+      this.drawRouteForFlight(flight);
+    }
+  }
+
+  private toggleFlightSelection(flightID: string): void {
+    // hide info when flight is unselected
+    if (this.selectedFlightIds.has(flightID)) {
+      this.selectedFlightIds.delete(flightID);
+      const polylines = this.flightPolylines.get(flightID);
+      if (polylines) {
+        polylines.forEach((polyline) => this.map.removeLayer(polyline));
+        this.flightPolylines.delete(flightID);
       }
+      const waypointMarkers = this.flightWaypointMarkers.get(flightID);
+      if (waypointMarkers) {
+        waypointMarkers.forEach((m) => this.map.removeLayer(m));
+        this.flightWaypointMarkers.delete(flightID);
+      }
+      const marker = this.flightMarkers.get(flightID);
+      if (marker) {
+        marker.closePopup();
+      }
+      return;
+    }
 
-      let endPosition: Position = flight.flightPositions[key + 1] as Position;
-      const polyline = L.polyline([startPosition, endPosition], {
-        color: 'white',
-        weight: 3,
-        opacity: 0.7,
-      }).addTo(this.map);
+    // display info when flight is selected
+    this.selectedFlightIds.add(flightID);
+    const flight = this.lastFlights.get(flightID);
+    if (flight) {
+      this.drawRouteForFlight(flight);
+    }
+    const marker = this.flightMarkers.get(flightID);
+    if (marker) {
+      marker.openPopup();
+    }
+  }
 
-      polylines.push(polyline);
-    });
+  private drawRouteForFlight(flight: FlightWithWind): void {
+    const existingPolylines = this.flightPolylines.get(flight.flightID);
+    if (existingPolylines) {
+      existingPolylines.forEach((polyline) => this.map.removeLayer(polyline));
+    }
+    const existingWaypointMarkers = this.flightWaypointMarkers.get(flight.flightID);
+    if (existingWaypointMarkers) {
+      existingWaypointMarkers.forEach((m) => this.map.removeLayer(m));
+      this.flightWaypointMarkers.delete(flight.flightID);
+    }
+
+    const polylines: L.Polyline[] = [];
+    const waypointMarkers: L.Marker[] = [];
+
+    if (flight.flightPlan && flight.flightPlan.length > 0) {
+      // Build route from waypoints only (without current aircraft position)
+      const routePositions: Position[] = [];
+      
+      // Add all waypoints that have coordinates
+      for (const waypoint of flight.flightPlan) {
+        if (waypoint.lat !== undefined && waypoint.lon !== undefined) {
+          routePositions.push([waypoint.lat, waypoint.lon]);
+          const wpMarker = L.marker([waypoint.lat, waypoint.lon], {
+            icon: this.waypointTriangleIcon,
+          })
+            .addTo(this.map)
+            .bindTooltip(waypoint.name, {
+              permanent: true,
+              direction: 'top',
+              className: 'waypoint-tooltip',
+            });
+          waypointMarkers.push(wpMarker);
+        }
+      }
+      
+      // Create polyline if we have at least 2 positions
+      if (routePositions.length >= 2) {
+        const polyline = L.polyline(routePositions, {
+          color: 'white',
+          weight: 3,
+          opacity: 0.7,
+        }).addTo(this.map);
+        polylines.push(polyline);
+      }
+      if (waypointMarkers.length > 0) {
+        this.flightWaypointMarkers.set(flight.flightID, waypointMarkers);
+      }
+    } else {
+      // Fallback to existing flightPositions logic
+      flight.flightPositions.forEach((startPosition, key) => {
+        if (flight.flightPositions[key + 1] === undefined) {
+          return;
+        }
+        const endPosition: Position = flight.flightPositions[
+          key + 1
+        ] as Position;
+        const polyline = L.polyline([startPosition, endPosition], {
+          color: 'white',
+          weight: 3,
+          opacity: 0.7,
+        }).addTo(this.map);
+        polylines.push(polyline);
+      });
+    }
 
     this.flightPolylines.set(flight.flightID, polylines);
   }
@@ -199,6 +339,13 @@ export class MapUi {
       const mtcdEvents: ApiMTCDEventStructure[] =
         await this.blueSkyDataProvider.getMTCDEvents();
 
+      // Update set of flights with active MTCD
+      this.flightsWithMTCD.clear();
+      mtcdEvents.forEach((event) => {
+        this.flightsWithMTCD.add(event.flight_id_1);
+        this.flightsWithMTCD.add(event.flight_id_2);
+      });
+
       // Clear existing MTCD circles
       this.clearAllMTCDCircles();
 
@@ -213,9 +360,27 @@ export class MapUi {
           this.displayMTCDCircle(event, center);
         }
       });
+
+      // Update flight markers to reflect MTCD status
+      this.updateFlightMarkersIcons();
     } catch (error) {
       console.error('Error updating MTCD events:', error);
     }
+  }
+
+  /**
+   * Update icons for existing flight markers based on MTCD status
+   */
+  private updateFlightMarkersIcons(): void {
+    this.flightMarkers.forEach((marker, flightID) => {
+      const hasMTCD = this.flightsWithMTCD.has(flightID);
+      const newIcon = hasMTCD ? this.warningPlaneIcon : this.normalPlaneIcon;
+      
+      // Only update if icon changed
+      if (marker.options.icon !== newIcon) {
+        marker.setIcon(newIcon);
+      }
+    });
   }
 
   private clearAllMTCDCircles(): void {
@@ -267,6 +432,15 @@ export class MapUi {
     `);
 
     this.mtcdCircles.set(circleKey, circle);
+  }
+
+  /**
+   * Get current simulation speed
+   *
+   * @returns Promise that resolves to current speed multiplier value
+   */
+  public async getSimulationSpeed(): Promise<number> {
+    return this.blueSkyDataProvider.getSimulationSpeed();
   }
 
   /**
