@@ -31,21 +31,19 @@ app.add_middleware(
 
 
 @app.get("/mtcd-events", response_model=List[MTCDEventResponse])
-def get_active_mtcd_events() -> List[MTCDEventResponse]:
+def get_mtcd_events(
+    active_only: bool = Query(True, description="If True, return only active events; if False, return all."),
+) -> List[MTCDEventResponse] | None:
     """
-    Get all currently active MTCD events from the database.
-
-    Returns:
-        List of active MTCD events
+    Get MTCD events from the database.
+    Returns: By default returns only active events; set active_only=false to return all.
     """
     db: Session = SessionLocal()
     try:
-        events = (
-            db.query(MTCDEvent)
-            .filter(MTCDEvent.active == True)  # noqa: E712
-            .order_by(MTCDEvent.detected_at.desc())
-            .all()
-        )
+        query = db.query(MTCDEvent).order_by(MTCDEvent.detected_at.desc())
+        if active_only:
+            query = query.filter(MTCDEvent.active == True)  # noqa: E712
+        events = query.all()
 
         return [MTCDEventResponse.model_validate(event) for event in events]
     except Exception as e:

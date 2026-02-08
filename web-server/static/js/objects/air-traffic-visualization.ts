@@ -18,6 +18,7 @@ export class AirTrafficVisualization {
     this.initHandlers();
     this.initModalCallbacks();
     this.loadSimulationSpeed();
+    void this.mapUi.resumeVisualizationIfFlightsExist();
   }
 
   /**
@@ -42,11 +43,35 @@ export class AirTrafficVisualization {
       'bottom-left-button': () => this.openScenarioModal(),
       'speed-decrease': () => this.decreaseSpeed(),
       'speed-increase': () => this.increaseSpeed(),
+      'heatmap-toggle': () => this.toggleHeatmap(),
     };
 
     Object.entries(uiHandlers).forEach(([elementId, handler]): void => {
       this.bindButton(elementId, handler);
     });
+  }
+
+  /**
+   * Toggle heatmap on/off and update the heatmap button label and style.
+   */
+  private toggleHeatmap(): void {
+    const enabled = !this.mapUi.getHeatmapEnabled();
+    this.mapUi.setHeatmapEnabled(enabled);
+    this.updateHeatmapButton(enabled);
+  }
+
+  /**
+   * Update heatmap toggle button text and class (red when off, green when on).
+   */
+  private updateHeatmapButton(enabled: boolean): void {
+    const button = document.getElementById('heatmap-toggle');
+    if (button === null) {
+      return;
+    }
+    
+    button.textContent = enabled ? 'Heatmap on' : 'Heatmap off';
+    button.classList.remove('heatmap-off', 'heatmap-on');
+    button.classList.add(enabled ? 'heatmap-on' : 'heatmap-off');
   }
 
   /**

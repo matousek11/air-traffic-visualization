@@ -1,11 +1,16 @@
 import L from 'leaflet';
 import 'leaflet-rotatedmarker';
+import 'leaflet.heat';
 import type { Flight, FlightWithWind, Position } from '../types/flight';
 import { FlightSimulation } from './flight-simulation';
 import {
   BlueSkyDataProvider,
   type ApiMTCDEventStructure,
 } from './blue-sky-data-provider';
+
+type HeatLayerInstance = L.Layer & {
+  setLatLngs: (latlngs: [number, number, number][]) => void;
+};
 
 export class MapUi {
   private map: L.Map;
@@ -28,6 +33,8 @@ export class MapUi {
   private waypointTriangleIcon: L.DivIcon;
   private updateIntervalId: number | null = null;
   private mtcdUpdateIntervalId: number | null = null;
+  private heatLayer: HeatLayerInstance | null = null;
+  private heatmapEnabled: boolean = false;
 
   constructor() {
     this.map = L.map('map').setView([49.9, 14.0], 13);
@@ -44,6 +51,27 @@ export class MapUi {
         maxZoom: 19,
       },
     ).addTo(this.map);
+
+    // Heat layer for MTCD events (added to map so it stays under circles and markers; data empty until user enables)
+    this.heatLayer = (
+      L as unknown as { heatLayer: (latlngs: [number, number, number][], options?: object) => HeatLayerInstance }
+    ).heatLayer(
+        [],
+        {
+          radius: 50,
+          blur: 15,
+          maxZoom: 18,
+          max: 1.0,
+          gradient: {
+            0.0: 'blue',
+            0.25: 'cyan',
+            0.5: 'lime',
+            0.75: 'yellow',
+            1: 'red',
+          },
+        },
+      ) as HeatLayerInstance;
+    this.heatLayer.addTo(this.map);
 
     this.normalPlaneIcon = L.icon({
       iconUrl:
@@ -87,6 +115,22 @@ export class MapUi {
   }
 
   /**
+   * If any flights are already running on the backend (e.g. after page refresh),
+   * starts the update loops so flights and MTCD are visualized without selecting a scenario.
+   */
+  public async resumeVisualizationIfFlightsExist(): Promise<void> {
+    try {
+      const flights = await this.flightSimulation.updateFlights();
+      if (flights.length > 0) {
+        this.startUpdateLoop();
+        this.startMTCDUpdateLoop();
+      }
+    } catch (error) {
+      console.error('Error checking for active flights:', error);
+    }
+  }
+
+  /**
    * Stops the current simulation and clears all displayed data
    */
   public stopSimulation(): void {
@@ -106,6 +150,11 @@ export class MapUi {
 
     this.selectedFlightIds.clear();
     this.lastFlights.clear();
+    // Clear heat layer data and reset heatmap state
+    if (this.heatLayer) {
+      this.heatLayer.setLatLngs([]);
+    }
+    this.heatmapEnabled = false;
     // Clear all displayed elements
     this.clearAllFlights();
     this.clearAllMTCDCircles();
@@ -334,32 +383,72 @@ export class MapUi {
     );
   };
 
+  /**
+   * Convert MTCD events to heat layer points [lat, lon, intensity].
+   * Less remaining_time -> higher intensity (0.2 to 1.0).
+   */
+  private mtcdEventsToHeatPoints(
+    events: ApiMTCDEventStructure[],
+  ): [number, number, number][] {
+    const maxTimeHours = 0.5; // 30 min
+    const points: [number, number, number][] = [];
+    
+    for (const event of events) {
+      const lat = event.middle_point_lat;
+      const lon = event.middle_point_lon;
+      if (lat == null || lon == null) {
+        continue;
+      }
+      
+      const t = event.remaining_time ?? maxTimeHours;
+      const normalizedRemainingTime = Math.max(
+        0,
+        Math.min(1, 1 - t / maxTimeHours),
+      );
+      let intensity = 0.3 + 0.7 * normalizedRemainingTime;
+      points.push([lat, lon, intensity]);
+    }
+
+    return points;
+  }
+
   private async updateMTCDEvents(): Promise<void> {
     try {
-      const mtcdEvents: ApiMTCDEventStructure[] =
-        await this.blueSkyDataProvider.getMTCDEvents();
+      // Heatmap uses all events (active + inactive); circles and flightsWithMTCD use only active
+      const allMtcdEvents: ApiMTCDEventStructure[] =
+        await this.blueSkyDataProvider.getAllMTCDEvents();
+      const activeMtcdEvents = allMtcdEvents.filter((e) => e.active);
 
       // Update set of flights with active MTCD
       this.flightsWithMTCD.clear();
-      mtcdEvents.forEach((event) => {
+      activeMtcdEvents.forEach((event) => {
         this.flightsWithMTCD.add(event.flight_id_1);
         this.flightsWithMTCD.add(event.flight_id_2);
       });
 
-      // Clear existing MTCD circles
-      this.clearAllMTCDCircles();
+      // Update heat layer data only when heatmap is enabled (when off, keep empty)
+      if (this.heatLayer) {
+        const heatPoints = this.heatmapEnabled
+          ? this.mtcdEventsToHeatPoints(allMtcdEvents)
+          : [];
+        this.heatLayer.setLatLngs(heatPoints);
+      }
 
-      // Display MTCD events as circles using middle_point from API
-      mtcdEvents.forEach((event) => {
-        event.vertical_distance = (event.vertical_distance ?? 0) * 6076.12 // convert from NM to feets
-        if (event.middle_point_lat && event.middle_point_lon) {
-          const center: Position = [
-            event.middle_point_lat,
-            event.middle_point_lon,
-          ];
-          this.displayMTCDCircle(event, center);
-        }
-      });
+      // Clear existing MTCD circles; draw circles only when heatmap is off
+      this.clearAllMTCDCircles();
+      if (!this.heatmapEnabled) {
+        // Display MTCD events as circles using middle_point from API
+        activeMtcdEvents.forEach((event) => {
+          event.vertical_distance = (event.vertical_distance ?? 0) * 6076.12; // convert from NM to feet
+          if (event.middle_point_lat && event.middle_point_lon) {
+            const center: Position = [
+              event.middle_point_lat,
+              event.middle_point_lon,
+            ];
+            this.displayMTCDCircle(event, center);
+          }
+        });
+      }
 
       // Update flight markers to reflect MTCD status
       this.updateFlightMarkersIcons();
@@ -432,6 +521,19 @@ export class MapUi {
     `);
 
     this.mtcdCircles.set(circleKey, circle);
+  }
+
+  public getHeatmapEnabled(): boolean {
+    return this.heatmapEnabled;
+  }
+
+  public setHeatmapEnabled(enabled: boolean): void {
+    this.heatmapEnabled = enabled;
+    if (enabled) {
+      this.clearAllMTCDCircles();
+      void this.updateMTCDEvents();
+    }
+    // Heat layer stays on map; data is updated in updateMTCDEvents (points when on, [] when off)
   }
 
   /**

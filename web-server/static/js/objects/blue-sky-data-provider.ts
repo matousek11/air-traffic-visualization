@@ -258,6 +258,26 @@ export class BlueSkyDataProvider {
   }
 
   /**
+   * Get all MTCD events from database (active and inactive)
+   */
+  public async getAllMTCDEvents(): Promise<ApiMTCDEventStructure[]> {
+    try {
+      const response = await fetch(
+        BlueSkyDataProvider.DATABASE_API_BASE_URL + '/mtcd-events?active_only=false',
+      );
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const mtcdEvents: ApiMTCDEventStructure[] = await response.json();
+      return mtcdEvents;
+    } catch (error) {
+      console.error('Error fetching all MTCD events:', error);
+      throw error;
+    }
+  }
+
+  /**
    * Gets waypoint coordinates from database service
    *
    * @param name Waypoint name/identifier

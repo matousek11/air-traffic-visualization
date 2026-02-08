@@ -24,7 +24,7 @@ body {
 
 #bottom-left-button {
     position: fixed;
-    bottom: 20px;
+    bottom: 75px;
     left: 20px;
     z-index: 1000;
     padding: 10px 20px;
@@ -80,6 +80,35 @@ body {
     font-weight: bold;
     min-width: 50px;
     text-align: center;
+}
+
+#heatmap-toggle {
+    position: fixed;
+    bottom: 20px;
+    left: 20px;
+    z-index: 1000;
+    padding: 10px 20px;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 16px;
+}
+
+#heatmap-toggle.heatmap-off {
+    background-color: #c0392b;
+}
+
+#heatmap-toggle.heatmap-off:hover {
+    background-color: #a93226;
+}
+
+#heatmap-toggle.heatmap-on {
+    background-color: #27ae60;
+}
+
+#heatmap-toggle.heatmap-on:hover {
+    background-color: #1e8449;
 }
 
 /* Scenario Modal Styles */
