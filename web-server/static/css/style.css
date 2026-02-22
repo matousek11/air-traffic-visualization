@@ -22,41 +22,22 @@ body {
     margin-bottom: 0;
 }
 
-#bottom-left-button {
-    position: fixed;
-    bottom: 75px;
-    left: 20px;
-    z-index: 1000;
-    padding: 10px 20px;
-    background-color: #007bff;
-    color: white;
-    border: none;
-    border-radius: 5px;
-    cursor: pointer;
-    font-size: 16px;
-}
-
-#bottom-left-button:hover {
-    background-color: #0056b3;
-}
-
 #speed-control {
     position: fixed;
     bottom: 20px;
-    left: 200px;
+    left: 180px;
     z-index: 1000;
     display: flex;
     align-items: center;
-    gap: 10px;
-    background-color: rgba(0, 0, 0, 0.7);
-    padding: 8px 12px;
+    gap: 5px;
+    padding: 0;
     border-radius: 5px;
 }
 
 #speed-decrease,
 #speed-increase {
-    width: 30px;
-    height: 30px;
+    width: 38px;
+    height: 38px;
     background-color: #007bff;
     color: white;
     border: none;
@@ -80,6 +61,46 @@ body {
     font-weight: bold;
     min-width: 50px;
     text-align: center;
+}
+
+.button {
+    min-width: 128px;
+}
+
+#bottom-left-button {
+    position: fixed;
+    bottom: 120px;
+    left: 20px;
+    z-index: 1000;
+    padding: 10px 20px;
+    background-color: #007bff;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 16px;
+}
+
+#bottom-left-button:hover {
+    background-color: #0056b3;
+}
+
+#data-source-button {
+    position: fixed;
+    bottom: 70px;
+    left: 20px;
+    z-index: 1000;
+    padding: 10px 20px;
+    background-color: #007bff;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 16px;
+}
+
+#data-source-button:hover {
+    background-color: #0056b3;
 }
 
 #heatmap-toggle {
@@ -211,4 +232,31 @@ body {
 
 .scenario-modal-button.stop-button:active {
     transform: translateY(0);
+}
+
+.scenario-modal-button.data-source-option {
+    background: #007bff;
+    color: #ffffff;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.scenario-modal-button.data-source-option:hover {
+    background: #0056b3;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(0, 123, 255, 0.4);
+}
+
+.scenario-modal-button.data-source-option:active {
+    transform: translateY(0);
+}
+
+.scenario-modal-button.data-source-option.active {
+    background: linear-gradient(135deg, #27ae60 0%, #1e8449 100%);
+    color: #ffffff;
+}
+
+.scenario-modal-button.data-source-option.active:hover {
+    background: linear-gradient(135deg, #2ecc71 0%, #27ae60 100%);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(39, 174, 96, 0.4);
 }

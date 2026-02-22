@@ -1,22 +1,59 @@
+import scenarios from '../../config/simulation-scenarios.json';
 import { MapUi } from './map-ui';
-import { ScenarioModal } from './scenario-modal';
+import { SelectionModal } from './selection-modal';
+import { SimulationScenarios } from './simulation-scenarios';
 
 /**
  * Entry class for client web application.
  */
 export class AirTrafficVisualization {
   private readonly mapUi: MapUi;
-  private readonly scenarioModal: ScenarioModal;
+  private readonly scenarioModal: SelectionModal;
+  private readonly dataSourceModal: SelectionModal;
   private currentSpeed: number = 1.0;
+  private currentDataSourceId: string = 'bluesky';
 
   /**
    * Automatically initialize web UI
    */
   constructor() {
     this.mapUi = new MapUi();
-    this.scenarioModal = new ScenarioModal();
+
+    const simulationScenarios = new SimulationScenarios(scenarios);
+    const scenarioOptions = simulationScenarios.getScenarioNames().map(
+      (key): { id: string; label: string } => ({
+        id: key,
+        label: simulationScenarios.getScenario(key).name,
+      }),
+    );
+
+    this.scenarioModal = new SelectionModal({
+      title: 'Simulation Scenario',
+      options: scenarioOptions,
+      variant: 'scenario',
+      overlayId: 'scenario-modal-overlay',
+      extraButton: {
+        label: 'Stop Simulation',
+        callback: (): void => this.stopSimulation(),
+      },
+      onSelect: (scenarioName: string): void => this.startScenario(scenarioName),
+    });
+
+    this.dataSourceModal = new SelectionModal({
+      title: 'Data source',
+      options: [
+        { id: 'bluesky', label: 'BlueSky' },
+        { id: 'live', label: 'Live data' },
+      ],
+      activeId: 'bluesky',
+      variant: 'dataSource',
+      overlayId: 'data-source-modal-overlay',
+      onSelect: (id: string): void => {
+        this.currentDataSourceId = id;
+      },
+    });
+
     this.initHandlers();
-    this.initModalCallbacks();
     this.loadSimulationSpeed();
     void this.mapUi.resumeVisualizationIfFlightsExist();
   }
@@ -41,6 +78,7 @@ export class AirTrafficVisualization {
   private initHandlers(): void {
     const uiHandlers: Record<string, () => void> = {
       'bottom-left-button': () => this.openScenarioModal(),
+      'data-source-button': () => this.dataSourceModal.show(),
       'speed-decrease': () => this.decreaseSpeed(),
       'speed-increase': () => this.increaseSpeed(),
       'heatmap-toggle': () => this.toggleHeatmap(),
@@ -72,21 +110,6 @@ export class AirTrafficVisualization {
     button.textContent = enabled ? 'Heatmap on' : 'Heatmap off';
     button.classList.remove('heatmap-off', 'heatmap-on');
     button.classList.add(enabled ? 'heatmap-on' : 'heatmap-off');
-  }
-
-  /**
-   * Initialize callbacks for the scenario modal
-   */
-  private initModalCallbacks(): void {
-    this.scenarioModal.setOnScenarioSelected(
-      (scenarioName: string): void => {
-        this.startScenario(scenarioName);
-      },
-    );
-
-    this.scenarioModal.setOnStopSimulation((): void => {
-      this.stopSimulation();
-    });
   }
 
   /**
