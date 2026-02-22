@@ -21,6 +21,7 @@ export class MapUi {
   private flightPolylines: Map<string, L.Polyline[]> = new Map();
   private flightWaypointMarkers: Map<string, L.Marker[]> = new Map();
   private mtcdCircles: Map<string, L.Circle> = new Map();
+  private mtcdConflictSegments: Map<string, L.Polyline> = new Map();
   // Store flight IDs that have active MTCD events
   private flightsWithMTCD: Set<string> = new Set();
   // Flight IDs selected by user (show route on click, hide on second click)
@@ -448,6 +449,15 @@ export class MapUi {
             this.displayMTCDCircle(event, center);
           }
         });
+        // Display conflict entry -> exit segments (dashed red line per flight)
+        activeMtcdEvents.forEach((event) => {
+          this.displayMTCDConflictSegment(event, event.flight_id_1,
+            event.flight_1_conflict_entry_lat, event.flight_1_conflict_entry_lon,
+            event.flight_1_conflict_exit_lat, event.flight_1_conflict_exit_lon);
+          this.displayMTCDConflictSegment(event, event.flight_id_2,
+            event.flight_2_conflict_entry_lat, event.flight_2_conflict_entry_lon,
+            event.flight_2_conflict_exit_lat, event.flight_2_conflict_exit_lon);
+        });
       }
 
       // Update flight markers to reflect MTCD status
@@ -473,11 +483,19 @@ export class MapUi {
   }
 
   private clearAllMTCDCircles(): void {
+    this.clearAllMTCDConflictSegments();
     // Remove all MTCD circles
     this.mtcdCircles.forEach((circle): void => {
       this.map.removeLayer(circle);
     });
     this.mtcdCircles.clear();
+  }
+
+  private clearAllMTCDConflictSegments(): void {
+    this.mtcdConflictSegments.forEach((polyline): void => {
+      this.map.removeLayer(polyline);
+    });
+    this.mtcdConflictSegments.clear();
   }
 
   private displayMTCDCircle(
@@ -521,6 +539,38 @@ export class MapUi {
     `);
 
     this.mtcdCircles.set(circleKey, circle);
+  }
+
+  private displayMTCDConflictSegment(
+    event: ApiMTCDEventStructure,
+    flightId: string,
+    entryLat: number | null,
+    entryLon: number | null,
+    exitLat: number | null,
+    exitLon: number | null,
+  ): void {
+    if (
+      entryLat == null || entryLon == null ||
+      exitLat == null || exitLon == null
+    ) {
+      return;
+    }
+    
+    const segmentKey = `mtcd-${event.id}-${flightId}`;
+    const existing = this.mtcdConflictSegments.get(segmentKey);
+    if (existing) {
+      this.map.removeLayer(existing);
+    }
+    const polyline = L.polyline(
+      [[entryLat, entryLon], [exitLat, exitLon]],
+      {
+        color: '#ff0000',
+        weight: 2,
+        opacity: 0.8,
+        dashArray: '10, 10',
+      },
+    ).addTo(this.map);
+    this.mtcdConflictSegments.set(segmentKey, polyline);
   }
 
   public getHeatmapEnabled(): boolean {

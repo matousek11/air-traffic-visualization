@@ -21,9 +21,21 @@ export type ApiMTCDEventStructure = {
   detected_at: string; // ISO datetime string
   horizontal_distance: number | null;
   vertical_distance: number | null;
-  remaining_time: number | null;
+  remaining_time: number | null; // time to conflict entry in hours
   middle_point_lat: number | null;
   middle_point_lon: number | null;
+  flight_1_conflict_entry_lat: number | null;
+  flight_1_conflict_entry_lon: number | null;
+  flight_1_conflict_entry_flight_level: number | null;
+  flight_1_conflict_exit_lat: number | null;
+  flight_1_conflict_exit_lon: number | null;
+  flight_1_conflict_exit_flight_level: number | null;
+  flight_2_conflict_entry_lat: number | null;
+  flight_2_conflict_entry_lon: number | null;
+  flight_2_conflict_entry_flight_level: number | null;
+  flight_2_conflict_exit_lat: number | null;
+  flight_2_conflict_exit_lon: number | null;
+  flight_2_conflict_exit_flight_level: number | null;
   active: boolean;
   last_checked: string | null; // ISO datetime string
 };

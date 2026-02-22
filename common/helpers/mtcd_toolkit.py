@@ -3,13 +3,14 @@ This module house calculations used to
 recognize possible conflicts between flights
 """
 import math
-from typing import Protocol
+from typing import Protocol, Any
 
 import numpy as np
 from numpy import array
 
 from common.helpers.logging_service import LoggingService
 from common.helpers.physics_calculator import PhysicsCalculator
+from common.models.position_3d import Position3D
 
 logger = LoggingService.get_logger(__name__)
 
@@ -32,7 +33,7 @@ class MtcdToolkit:
         self, 
         flight_1: FlightLike,
         flight_2: FlightLike
-    ) -> tuple[float, float, float, float, float, float] | None:
+    ) -> tuple[float, float, float, float, float, Position3D, Position3D, Position3D, Position3D, Position3D] | None:
         """
         Calculates the closest approach point between two flights.
         
@@ -137,25 +138,158 @@ class MtcdToolkit:
         )
         middle_point_global = flight_1_pos_at_cpa + 0.5 * relative_pos_at_cpa
 
-        [
-            middle_point_lat,
-            middle_point_lon,
-            middle_point_fl
-        ] = self.physics_calculator.enu_to_latlon(
+        middle_point = self.physics_calculator.enu_to_latlon(
             self.physics_calculator.nm_to_km(float(middle_point_global[0])),
             self.physics_calculator.nm_to_km(float(middle_point_global[1])),
             self.physics_calculator.nm_to_km(float(middle_point_global[2])),
             flight_1.lat, flight_1.lon, flight_1.flight_level
         )
 
+        result = self._calculate_entry_point_to_conflict(
+            relative_vector_pos,
+            relative_vector_ground_speed
+        )
+
+        if result is None:
+            raise ValueError('Conflict entry and exit times should not be None here')
+
+        time_to_conflict_entry, time_to_conflict_exit = result
+
+        if math.isinf(time_to_conflict_entry) or math.isinf(time_to_conflict_exit):
+            raise ValueError('Conflict entry and exit times should not be infinite here')
+
+        flight_1_conflict_entry_pos = self._calculate_pos(
+            flight_1,
+            flight_1_position_vector,
+            flight_1_speed_vector,
+            time_to_conflict_entry
+        )
+        flight_1_conflict_exit_pos = self._calculate_pos(
+            flight_1,
+            flight_1_position_vector,
+            flight_1_speed_vector,
+            time_to_conflict_exit
+        )
+
+        flight_2_conflict_entry_pos = self._calculate_pos(
+            flight_1,
+            flight_2_position_vector,
+            flight_2_speed_vector,
+            time_to_conflict_entry
+        )
+        flight_2_conflict_exit_pos = self._calculate_pos(
+            flight_1,
+            flight_2_position_vector,
+            flight_2_speed_vector,
+            time_to_conflict_exit
+        )
+
         return (
             horizontal_distance,
             float(up_distance),
+            time_to_conflict_entry,
+            time_to_conflict_exit,
             float(time_to_closest_approach),
-            middle_point_lat,
-            middle_point_lon,
-            middle_point_fl
+            flight_1_conflict_entry_pos,
+            flight_1_conflict_exit_pos,
+            flight_2_conflict_entry_pos,
+            flight_2_conflict_exit_pos,
+            middle_point
         )
+
+    def _calculate_pos(
+            self,
+            ref_pos: FlightLike,
+            flight_position_vector: np.ndarray[tuple[Any, ...], np.dtype],
+            flight_speed_vector: np.ndarray[tuple[Any, ...], np.dtype],
+            remaining_time: float
+    ) -> Position3D:
+        calculated_flight_pos = (
+                flight_position_vector + flight_speed_vector * remaining_time
+        )
+
+        return self.physics_calculator.enu_to_latlon(
+            self.physics_calculator.nm_to_km(float(calculated_flight_pos[0])),
+            self.physics_calculator.nm_to_km(float(calculated_flight_pos[1])),
+            self.physics_calculator.nm_to_km(float(calculated_flight_pos[2])),
+            ref_pos.lat, ref_pos.lon, ref_pos.flight_level
+        )
+
+    def _calculate_entry_point_to_conflict(
+            self,
+            relative_vector_pos,
+            relative_vector_ground_speed
+    ) -> tuple[float, float] | None:
+        """
+        Calculates entry and exit point to conflict cylinder between two flights.
+
+        :param relative_vector_pos: relative position in ENU
+        :param relative_vector_ground_speed: relative ground speed in ENU
+        :return: tuple of entry time and exit time from conflict or None if no conflict exists,
+        in case that flights are already in conflict and stay in conflict infinity will be returned
+        """
+        HORIZONTAL_SEP_NM = 5.0 # TODO: get correct separation distance for position of CPA
+        VERTICAL_SEP_NM = 1000.0 / 6076.11549 # TODO: get correct separation distance for position of CPA
+
+        # Horizontal calculation (X,Y - North, East)
+        relative_pos_xy = relative_vector_pos[:2]
+        relative_ground_speed_xy = relative_vector_ground_speed[:2]
+
+        # Coefficients of quadratic equation: a*t^2 + b*t + c = 0
+        a = np.dot(relative_ground_speed_xy, relative_ground_speed_xy)
+        b = 2.0 * np.dot(relative_pos_xy, relative_ground_speed_xy)
+        c = np.dot(relative_pos_xy, relative_pos_xy) - HORIZONTAL_SEP_NM ** 2
+
+        if abs(a) < 1e-10:
+            # Flights fly parallel and with same speed
+            if c < 0:
+                # Flights are already in horizontal infinite conflict with current trajectory
+                time_to_horizontal_entry, time_to_horizontal_exit = float('-inf'), float('inf')
+            else:
+                # Flights will not enter a conflict with current trajectory
+                return None
+        else:
+            discriminant = b ** 2 - 4 * a * c
+
+            if discriminant < 0:
+                return None  # flight are not going to have conflict with current trajectory
+
+            discriminant = max(0.0, discriminant)
+            sqrt_d = math.sqrt(discriminant)
+            # calculate time of an entry and exit to a conflict
+            time_to_horizontal_entry = (-b - sqrt_d) / (2 * a)
+            time_to_horizontal_exit = (-b + sqrt_d) / (2 * a)
+
+        # Vertical calculation (Z - Up)
+        relative_pos_z = relative_vector_pos[2]
+        relative_ground_speed_z = relative_vector_ground_speed[2]
+
+        if abs(relative_ground_speed_z) < 1e-10:
+            # Flights are maintaining the same relative altitude
+            if abs(relative_pos_z) < VERTICAL_SEP_NM:
+                # They are already within vertical conflict
+                vertical_entry_time, vertical_exit_time = float('-inf'), float('inf')
+            else:
+                # Flights are safely separated forever with current trajectory
+                return None
+        else:
+            t_v1 = (VERTICAL_SEP_NM - relative_pos_z) / relative_ground_speed_z
+            t_v2 = (-VERTICAL_SEP_NM - relative_pos_z) / relative_ground_speed_z
+
+            # Order the times correctly
+            vertical_entry_time = min(t_v1, t_v2)
+            vertical_exit_time = max(t_v1, t_v2)
+
+        # --- Interval Intersection ---
+        # The true conflict cylinder is breached only when BOTH separations are violated
+        time_to_conflict_entry = max(time_to_horizontal_entry, vertical_entry_time)
+        time_to_conflict_exit = min(time_to_horizontal_exit, vertical_exit_time)
+
+        # Evaluate if the overlapping interval is valid and hasn't completely passed
+        if time_to_conflict_entry <= time_to_conflict_exit and time_to_conflict_exit >= 0:
+            return float(time_to_conflict_entry), float(time_to_conflict_exit)
+
+        return None
 
     @staticmethod
     def get_speed_vector(

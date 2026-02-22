@@ -6,6 +6,7 @@ import math
 from typing import Tuple
 
 from common.models.position import Position
+from common.models.position_3d import Position3D
 
 
 class PhysicsCalculator:
@@ -176,7 +177,7 @@ class PhysicsCalculator:
             ref_lat: float,
             ref_lon: float,
             ref_fl: int
-    ) -> tuple[float, float, float]:
+    ) -> Position3D:
         """
         Converts ENU coordinates to geodetic coordinates with flight level
 
@@ -186,7 +187,6 @@ class PhysicsCalculator:
         :param ref_lat: Reference latitude in degrees
         :param ref_lon: Reference longitude in degrees
         :param ref_fl: Reference flight level
-        :return: tuple (lat, lon, flight level)
         """
         dlat = (
                 north / PhysicsCalculator.EARTH_RADIUS_KM
@@ -202,7 +202,7 @@ class PhysicsCalculator:
         lon = ref_lon + math.degrees(dlon)
         fl = ref_fl + up / 0.03048
 
-        return lat, lon, fl
+        return Position3D(lat, lon, fl)
 
     @staticmethod
     def km_to_nm(value: float) -> float:

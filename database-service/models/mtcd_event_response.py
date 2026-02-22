@@ -26,7 +26,43 @@ class MTCDEventResponse(BaseModel):
         description="Vertical distance at closest approach in nautical miles"
     )
     remaining_time: Optional[float] = Field(
-        description="Time remaining until closest approach in hours"
+        description="Time to conflict entry in hours"
+    )
+    flight_1_conflict_entry_lat: Optional[float] = Field(
+        description="Flight 1 latitude at conflict entry"
+    )
+    flight_1_conflict_entry_lon: Optional[float] = Field(
+        description="Flight 1 longitude at conflict entry"
+    )
+    flight_1_conflict_entry_flight_level: Optional[float] = Field(
+        description="Flight 1 flight level at conflict entry"
+    )
+    flight_1_conflict_exit_lat: Optional[float] = Field(
+        description="Flight 1 latitude at conflict exit"
+    )
+    flight_1_conflict_exit_lon: Optional[float] = Field(
+        description="Flight 1 longitude at conflict exit"
+    )
+    flight_1_conflict_exit_flight_level: Optional[float] = Field(
+        description="Flight 1 flight level at conflict exit"
+    )
+    flight_2_conflict_entry_lat: Optional[float] = Field(
+        description="Flight 2 latitude at conflict entry"
+    )
+    flight_2_conflict_entry_lon: Optional[float] = Field(
+        description="Flight 2 longitude at conflict entry"
+    )
+    flight_2_conflict_entry_flight_level: Optional[float] = Field(
+        description="Flight 2 flight level at conflict entry"
+    )
+    flight_2_conflict_exit_lat: Optional[float] = Field(
+        description="Flight 2 latitude at conflict exit"
+    )
+    flight_2_conflict_exit_lon: Optional[float] = Field(
+        description="Flight 2 longitude at conflict exit"
+    )
+    flight_2_conflict_exit_flight_level: Optional[float] = Field(
+        description="Flight 2 flight level at conflict exit"
     )
     active: bool = Field(description="Whether the conflict is still active")
     last_checked: Optional[datetime] = Field(

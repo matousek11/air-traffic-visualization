@@ -79,8 +79,11 @@ class CheckMtcdJob:
         (
             horizontal_distance,
             vertical_distance,
+            _time_to_conflict_entry,
+            _time_to_conflict_exit,
             time_to_closest_approach,
-            _, _, _
+            *_positions,
+            _middle_point,
         ) = result
 
         if not self._is_conflict(
@@ -128,16 +131,20 @@ class CheckMtcdJob:
             self,
             flight_id_1: str,
             flight_id_2: str,
-            result: Tuple[float, float, float, float, float, float]
+            result: Tuple,
     ) -> bool:
         """Will create or update MTCD event connected to selected two flights"""
         (
             horizontal_distance,
             vertical_distance,
-            time_to_closest_approach,
-            middle_point_lat,
-            middle_point_lon,
-            _middle_point_fl,
+            time_to_conflict_entry,
+            time_to_conflict_exit,
+            _time_to_closest_approach,
+            flight_1_conflict_entry_pos,
+            flight_1_conflict_exit_pos,
+            flight_2_conflict_entry_pos,
+            flight_2_conflict_exit_pos,
+            middle_point,
         ) = result
 
         db = SessionLocal()
@@ -161,9 +168,21 @@ class CheckMtcdJob:
                     detected_at=datetime.now(timezone.utc),
                     horizontal_distance=float(horizontal_distance),
                     vertical_distance=float(vertical_distance),
-                    remaining_time=float(time_to_closest_approach),
-                    middle_point_lat=float(middle_point_lat),
-                    middle_point_lon=float(middle_point_lon),
+                    remaining_time=float(time_to_conflict_entry),
+                    middle_point_lat=float(middle_point.lat),
+                    middle_point_lon=float(middle_point.lon),
+                    flight_1_conflict_entry_lat=float(flight_1_conflict_entry_pos.lat),
+                    flight_1_conflict_entry_lon=float(flight_1_conflict_entry_pos.lon),
+                    flight_1_conflict_entry_flight_level=float(flight_1_conflict_entry_pos.flight_level),
+                    flight_1_conflict_exit_lat=float(flight_1_conflict_exit_pos.lat),
+                    flight_1_conflict_exit_lon=float(flight_1_conflict_exit_pos.lon),
+                    flight_1_conflict_exit_flight_level=float(flight_1_conflict_exit_pos.flight_level),
+                    flight_2_conflict_entry_lat=float(flight_2_conflict_entry_pos.lat),
+                    flight_2_conflict_entry_lon=float(flight_2_conflict_entry_pos.lon),
+                    flight_2_conflict_entry_flight_level=float(flight_2_conflict_entry_pos.flight_level),
+                    flight_2_conflict_exit_lat=float(flight_2_conflict_exit_pos.lat),
+                    flight_2_conflict_exit_lon=float(flight_2_conflict_exit_pos.lon),
+                    flight_2_conflict_exit_flight_level=float(flight_2_conflict_exit_pos.flight_level),
                     active=True,
                     last_checked=datetime.now(timezone.utc),
                 )
@@ -176,9 +195,21 @@ class CheckMtcdJob:
                 # Update existing event
                 existing_event.horizontal_distance = horizontal_distance
                 existing_event.vertical_distance = vertical_distance
-                existing_event.remaining_time = time_to_closest_approach
-                existing_event.middle_point_lat = middle_point_lat
-                existing_event.middle_point_lon = middle_point_lon
+                existing_event.remaining_time = time_to_conflict_entry
+                existing_event.middle_point_lat = middle_point.lat
+                existing_event.middle_point_lon = middle_point.lon
+                existing_event.flight_1_conflict_entry_lat = flight_1_conflict_entry_pos.lat
+                existing_event.flight_1_conflict_entry_lon = flight_1_conflict_entry_pos.lon
+                existing_event.flight_1_conflict_entry_flight_level = flight_1_conflict_entry_pos.flight_level
+                existing_event.flight_1_conflict_exit_lat = flight_1_conflict_exit_pos.lat
+                existing_event.flight_1_conflict_exit_lon = flight_1_conflict_exit_pos.lon
+                existing_event.flight_1_conflict_exit_flight_level = flight_1_conflict_exit_pos.flight_level
+                existing_event.flight_2_conflict_entry_lat = flight_2_conflict_entry_pos.lat
+                existing_event.flight_2_conflict_entry_lon = flight_2_conflict_entry_pos.lon
+                existing_event.flight_2_conflict_entry_flight_level = flight_2_conflict_entry_pos.flight_level
+                existing_event.flight_2_conflict_exit_lat = flight_2_conflict_exit_pos.lat
+                existing_event.flight_2_conflict_exit_lon = flight_2_conflict_exit_pos.lon
+                existing_event.flight_2_conflict_exit_flight_level = flight_2_conflict_exit_pos.flight_level
                 existing_event.last_checked = datetime.now(timezone.utc)
                 db.commit()
                 logger.debug(

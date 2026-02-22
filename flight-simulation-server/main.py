@@ -152,9 +152,7 @@ def get_closest_approach_point(
         horizontal_distance,
         vertical_distance,
         time_to_closest_approach_point,
-        middle_point_lat,
-        middle_point_lon,
-        middle_point_fl,
+        middle_point
     ] = result
 
     return ClosestApproachPoint(
@@ -163,7 +161,7 @@ def get_closest_approach_point(
         horizontal_distance=horizontal_distance,
         vertical_distance=vertical_distance,
         time_to_closest_approach=time_to_closest_approach_point,
-        middle_point_lat=middle_point_lat,
-        middle_point_lon=middle_point_lon,
-        middle_point_fl=middle_point_fl,
+        middle_point_lat=middle_point.lat,
+        middle_point_lon=middle_point.lon,
+        middle_point_fl=middle_point.flight_level,
     )
