@@ -22,7 +22,7 @@ class RouteTreeTransformer(Transformer):
         """
         Represents node rule for route
 
-        :param items: everything parser found
+        :param items: everything parser found (list of (index, item) or flat list)
         :return:
         """
         segments = []
@@ -30,15 +30,24 @@ class RouteTreeTransformer(Transformer):
         departure_procedure = None
         star_procedure = None
 
-        # sort by type of object
-        for index, item in items:
+        # Normalize: parser passes flat list
+        normalized = []
+        for index, thing in enumerate(items):
+            if isinstance(thing, tuple) and len(thing) == 2:
+                normalized.append(thing)
+            else:
+                normalized.append((index, thing))
+
+        for index, item in normalized:
+            if item is None:
+                continue
             if isinstance(item, InitialRouteConfig):
                 init_config = item
             elif isinstance(item, RawRouteSegment):
                 segments.append(item)
-            elif index == 0 or index == 1:
+            elif isinstance(item, DepartureProcedure):
                 departure_procedure = item
-            else:
+            elif isinstance(item, ArrivalProcedure):
                 star_procedure = item
 
         return ParsedFlightPlan(
@@ -139,7 +148,7 @@ class RouteTreeTransformer(Transformer):
         elif speed_unit == 'K': # km/h
             true_air_speed = int(int(speed_val) * 0.539957)  # km/h to knots
 
-        if true_air_speed is not None:
+        if true_air_speed is None:
             raise ValueError(f"Unable to parse and convert air speed: {raw_sl}")
 
         # conversion to flight levels in feets
@@ -160,7 +169,7 @@ class RouteTreeTransformer(Transformer):
             # as planes near should have same altitude if collision should appear
             flight_level = int(round(int(altitude_val) * 0.0328084, 0))
 
-        if flight_level is not None:
+        if flight_level is None:
             raise ValueError(f"Unable to parse and convert flight level: {raw_sl}")
 
         return {

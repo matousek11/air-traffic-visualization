@@ -1,13 +1,13 @@
-.PHONY: test lint
+.PHONY: test lint test-coverage check
 
 lint:
 	pylint .
 
 test:
-	pytest tests/
+	PYTHONPATH=.:database-service pytest tests/
 
 test-coverage:
-	pytest --cov=. --cov-report=term --cov-config=.coveragerc
+	PYTHONPATH=.:database-service pytest --cov=. --cov-report=term --cov-config=.coveragerc
 
 check: lint test test-coverage
 

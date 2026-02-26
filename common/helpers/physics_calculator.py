@@ -76,9 +76,9 @@ class PhysicsCalculator:
     ) -> float:
         """
         Calculates vertical speed between
-        two points in geographic coordinate system
+        two points in geographic coordinate system.
 
-        :return: vertical speed in meters per minute
+        :return: vertical speed in meters per minute (positive climb, negative descent)
         """
         # 240 -> 24 000 feet
         # 1 feet -> 0.3048m
@@ -87,7 +87,7 @@ class PhysicsCalculator:
                 (current_position.timestamp - previous_position.timestamp) / 60
         )
         vertical_difference = (
-                previous_position.flight_level - current_position.flight_level
+                current_position.flight_level - previous_position.flight_level
         )
         vertical_difference *= 100 * feet_to_meters
         return vertical_difference / minute_diff

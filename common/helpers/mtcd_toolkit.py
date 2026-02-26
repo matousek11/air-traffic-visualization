@@ -151,7 +151,8 @@ class MtcdToolkit:
         )
 
         if result is None:
-            raise ValueError('Conflict entry and exit times should not be None here')
+            # flights are not going to be close enough
+            return None
 
         time_to_conflict_entry, time_to_conflict_exit = result
 
@@ -229,7 +230,7 @@ class MtcdToolkit:
         in case that flights are already in conflict and stay in conflict infinity will be returned
         """
         HORIZONTAL_SEP_NM = 5.0 # TODO: get correct separation distance for position of CPA
-        VERTICAL_SEP_NM = 1000.0 / 6076.11549 # TODO: get correct separation distance for position of CPA
+        VERTICAL_SEP_NM = (1000.0 * 0.3048) / 1852.0 # TODO: get correct separation distance for position of CPA
 
         # Horizontal calculation (X,Y - North, East)
         relative_pos_xy = relative_vector_pos[:2]
