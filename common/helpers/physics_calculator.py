@@ -11,20 +11,18 @@ from common.models.position_3d import Position3D
 
 class PhysicsCalculator:
     """
-    Provides necessary physics calculations
-    """
-    EARTH_RADIUS_KM = 6371.0 # Radius of Earth in kilometers (haversine method)
-
-    """
-    Class provides physical calculation methods to infer 
+    Class provides physical calculation methods to infer
     necessary physical quantities of plane from two points in time
     """
+
+    EARTH_RADIUS_KM = 6371.0 # Radius of Earth in kilometers (haversine method)
+
     @staticmethod
     def get_distance_between_positions(
             lat1: float,
             lon1: float,
             lat2: float,
-            lon2: float
+            lon2: float,
     ) -> float:
         """
         Calculates distance on Earth between
@@ -44,6 +42,29 @@ class PhysicsCalculator:
         c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
 
         return PhysicsCalculator.EARTH_RADIUS_KM * c  # in kilometers
+
+    def calculate_heading(
+            self,
+            lat1: float,
+            lon1: float,
+            lat2: float,
+            lon2: float,
+    ) -> float:
+        """
+        Calculates heading from point 1 to point 2 on earth
+        """
+        phi1, lambda1 = math.radians(lat1), math.radians(lon1)
+        phi2, lambda2 = math.radians(lat2), math.radians(lon2)
+
+        delta_lambda = lambda2 - lambda1
+
+        y = math.sin(delta_lambda) * math.cos(phi2)
+        x = (math.cos(phi1) * math.sin(phi2) -
+             math.sin(phi1) * math.cos(phi2) * math.cos(delta_lambda))
+
+        bearing = math.atan2(y, x)
+
+        return (math.degrees(bearing) + 360) % 360
 
     @staticmethod
     def get_horizontal_speed(
@@ -144,7 +165,7 @@ class PhysicsCalculator:
             flight_level_1: int,
             lat2: float,
             lon2: float,
-            flight_level_2: int
+            flight_level_2: int,
     ) -> tuple[float, float, float]:
         """
         Returns distance vector from position 1 to position 2
@@ -176,7 +197,7 @@ class PhysicsCalculator:
             up: float,
             ref_lat: float,
             ref_lon: float,
-            ref_fl: int
+            ref_fl: int,
     ) -> Position3D:
         """
         Converts ENU coordinates to geodetic coordinates with flight level

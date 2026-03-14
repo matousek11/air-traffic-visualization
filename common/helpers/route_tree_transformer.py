@@ -3,11 +3,11 @@ import re
 from lark import Transformer
 
 from common.helpers.logging_service import LoggingService
-from models.flight_parser.arrival_procedure import ArrivalProcedure
-from models.flight_parser.departure_procedure import DepartureProcedure
-from models.flight_parser.initial_route_config import InitialRouteConfig
-from models.flight_parser.parsed_flight_plan import ParsedFlightPlan
-from models.flight_parser.raw_route_segment import RawRouteSegment
+from common.models.flight_parser.arrival_procedure import ArrivalProcedure
+from common.models.flight_parser.departure_procedure import DepartureProcedure
+from common.models.flight_parser.initial_route_config import InitialRouteConfig
+from common.models.flight_parser.parsed_flight_plan import ParsedFlightPlan
+from common.models.flight_parser.raw_route_segment import RawRouteSegment
 
 logger = LoggingService.get_logger(__name__)
 
@@ -130,7 +130,7 @@ class RouteTreeTransformer(Transformer):
 
         match = re.match(r"([NKM])(\d{3,4})([FASM])(\d{3,4})", raw_sl)
         if not match:
-            logger.warning(f"Unable to parse speed/flight level change: {raw_sl}")
+            logger.warning("Unable to parse speed/flight level change: %s", raw_sl)
             return {'true_air_speed': None, 'flight_level': None}
 
         speed_unit, speed_val, altitude_unit, altitude_val = match.groups()

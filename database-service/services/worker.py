@@ -47,7 +47,7 @@ class Worker:
         if job_type == "mtcd_conflict_check":
             return CheckMtcdJob().execute(job_data)
         else:
-            logger.warning(f"Unknown job type: {job_type}")
+            logger.warning("Unknown job type: %s", job_type)
             return False
 
 

@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 
-from models.flight_parser.waypoint import Waypoint
+from common.models.flight_parser.waypoint import Waypoint
 
 
 @dataclass

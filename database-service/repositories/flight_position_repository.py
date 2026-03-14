@@ -20,7 +20,7 @@ class FlightPositionRepository:
                 .first()
             )
         except Exception as e:
-            logger.error(f"Error loading latest flight position: {e}", exc_info=True)
+            logger.error("Error loading latest flight position: %s", e, exc_info=True)
             db.rollback()
             return None
         finally:

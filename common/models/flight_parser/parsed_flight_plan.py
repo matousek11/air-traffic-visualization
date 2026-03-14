@@ -1,8 +1,8 @@
 from dataclasses import dataclass
 from typing import List, Optional
 
-from models.flight_parser.initial_route_config import InitialRouteConfig
-from models.flight_parser.raw_route_segment import RawRouteSegment
+from common.models.flight_parser.initial_route_config import InitialRouteConfig
+from common.models.flight_parser.raw_route_segment import RawRouteSegment
 
 @dataclass
 class ParsedFlightPlan:

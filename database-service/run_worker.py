@@ -25,5 +25,5 @@ if __name__ == "__main__":
     try:
         worker_1.start_consuming()
     except Exception as e:
-        logger.error(f"Worker error: {e}", exc_info=True)
+        logger.error("Worker error: %s", e, exc_info=True)
         sys.exit(1)

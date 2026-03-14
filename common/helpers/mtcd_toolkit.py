@@ -1,9 +1,9 @@
 """
-This module house calculations used to
+This module houses calculations used to
 recognize possible conflicts between flights
 """
 import math
-from typing import Protocol, Any
+from typing import Any, NamedTuple
 
 import numpy as np
 from numpy import array
@@ -14,14 +14,27 @@ from common.models.position_3d import Position3D
 
 logger = LoggingService.get_logger(__name__)
 
-class FlightLike(Protocol):
+class FlightLike(NamedTuple):
     """Protocol defining the interface for flight objects used in MTCD calculations."""
     lat: float
     lon: float
     flight_level: int
-    speed: int
+    ground_speed: int # kts
     track_heading: int
-    vertical_speed: float
+    vertical_speed: float # ft/min
+
+class Conflict(NamedTuple):
+    """DTO for predicted conflict"""
+    horizontal_distance: float # in NM
+    vertical_distance: float # in NM
+    time_to_conflict_entry: float # in hours
+    time_to_conflict_exit: float # in hours
+    time_to_closest_approach: float # in hours
+    flight_1_conflict_entry_pos: Position3D
+    flight_1_conflict_exit_pos: Position3D
+    flight_2_conflict_entry_pos: Position3D
+    flight_2_conflict_exit_pos: Position3D
+    middle_point: Position3D # point between flights during CPA
 
 
 class MtcdToolkit:
@@ -33,32 +46,36 @@ class MtcdToolkit:
         self, 
         flight_1: FlightLike,
         flight_2: FlightLike
-    ) -> tuple[float, float, float, float, float, Position3D, Position3D, Position3D, Position3D, Position3D] | None:
+    ) -> Conflict | None:
         """
         Calculates the closest approach point between two flights.
         
         Args:
-            flight_1: Flight object with attributes: lat, lon, flight_level, speed, track_heading, vertical_speed
-            flight_2: Flight object with attributes: lat, lon, flight_level, speed, track_heading, vertical_speed
+            flight_1: Flight object with attributes: lat, lon, flight_level, ground_speed, track_heading, vertical_speed
+            flight_2: Flight object with attributes: lat, lon, flight_level, ground_speed, track_heading, vertical_speed
             
         Returns:
             Tuple of (horizontal_distance, vertical_distance, time_to_closest_approach,
                      middle_point_lat, middle_point_lon, middle_point_fl) or None
         """
+        logger.info('Starting precise check.')
+        logger.info('Flight 1 data: %s', flight_1)
+        logger.info('Flight 2 data: %s', flight_2)
+
         if flight_1 is None or flight_2 is None:
             raise ValueError('Both flight objects must be provided')
 
         # position vector of flight 1
-        # flight 1 used as reference point (NM)
+        # flight 1 used as the reference point (NM)
         flight_1_position_vector = np.array([0, 0, 0])
         # get speed vector of flight 1 (kts)
         flight_1_speed_vector = self.get_speed_vector(
-            flight_1.speed,
+            flight_1.ground_speed,
             flight_1.track_heading,
             flight_1.vertical_speed
         )
 
-        # get position vector of flight 2 (NM from reference point of flight 1)
+        # get the position vector of flight 2 (NM from reference point of flight 1)
         [
             east,
             north,
@@ -76,7 +93,7 @@ class MtcdToolkit:
 
         # get speed vector of flight 2 (kts)
         flight_2_speed_vector = self.get_speed_vector(
-            flight_2.speed,
+            flight_2.ground_speed,
             flight_2.track_heading,
             flight_2.vertical_speed
         )
@@ -96,8 +113,6 @@ class MtcdToolkit:
         )
         if speed_dot_product < 1e-10:
             # Aircraft have identical velocity vectors - no unique CPA exists
-            logger.info(vars(flight_1))
-            logger.info(vars(flight_2))
             logger.info('Aircraft have identical velocity vectors')
             return None
 
@@ -108,8 +123,11 @@ class MtcdToolkit:
         )
 
         if time_to_closest_approach < 0:
-            # Closest point already passed
-            logger.info('Closest point of approach already passed')
+            # The closest point already passed
+            logger.info(
+                'Closest point of approach already passed, time: %d',
+                time_to_closest_approach,
+            )
             return None
 
         # calculate distance between flights in the closest approach point (NM)
@@ -127,7 +145,7 @@ class MtcdToolkit:
         )
         horizontal_distance = math.sqrt(east_distance**2 + north_distance**2)
 
-        # calculate middle point of closest approach between flights (lat, lon)
+        # calculate the middle point of the closest approach between flights (lat, lon)
         relative_pos_at_cpa = np.array([
             east_distance, north_distance, up_distance
         ])
@@ -152,6 +170,7 @@ class MtcdToolkit:
 
         if result is None:
             # flights are not going to be close enough
+            logger.info('Flights are not going to be close enough in selected segments.')
             return None
 
         time_to_conflict_entry, time_to_conflict_exit = result
@@ -163,29 +182,29 @@ class MtcdToolkit:
             flight_1,
             flight_1_position_vector,
             flight_1_speed_vector,
-            time_to_conflict_entry
+            time_to_conflict_entry,
         )
         flight_1_conflict_exit_pos = self._calculate_pos(
             flight_1,
             flight_1_position_vector,
             flight_1_speed_vector,
-            time_to_conflict_exit
+            time_to_conflict_exit,
         )
 
         flight_2_conflict_entry_pos = self._calculate_pos(
             flight_1,
             flight_2_position_vector,
             flight_2_speed_vector,
-            time_to_conflict_entry
+            time_to_conflict_entry,
         )
         flight_2_conflict_exit_pos = self._calculate_pos(
             flight_1,
             flight_2_position_vector,
             flight_2_speed_vector,
-            time_to_conflict_exit
+            time_to_conflict_exit,
         )
 
-        return (
+        return Conflict(
             horizontal_distance,
             float(up_distance),
             time_to_conflict_entry,
@@ -195,7 +214,7 @@ class MtcdToolkit:
             flight_1_conflict_exit_pos,
             flight_2_conflict_entry_pos,
             flight_2_conflict_exit_pos,
-            middle_point
+            middle_point,
         )
 
     def _calculate_pos(
@@ -203,7 +222,7 @@ class MtcdToolkit:
             ref_pos: FlightLike,
             flight_position_vector: np.ndarray[tuple[Any, ...], np.dtype],
             flight_speed_vector: np.ndarray[tuple[Any, ...], np.dtype],
-            remaining_time: float
+            remaining_time: float,
     ) -> Position3D:
         calculated_flight_pos = (
                 flight_position_vector + flight_speed_vector * remaining_time
@@ -242,22 +261,22 @@ class MtcdToolkit:
         c = np.dot(relative_pos_xy, relative_pos_xy) - HORIZONTAL_SEP_NM ** 2
 
         if abs(a) < 1e-10:
-            # Flights fly parallel and with same speed
+            # Flights fly parallel and with the same speed
             if c < 0:
                 # Flights are already in horizontal infinite conflict with current trajectory
                 time_to_horizontal_entry, time_to_horizontal_exit = float('-inf'), float('inf')
             else:
-                # Flights will not enter a conflict with current trajectory
+                # Flights will not enter a conflict with the current trajectory
                 return None
         else:
             discriminant = b ** 2 - 4 * a * c
 
             if discriminant < 0:
-                return None  # flight are not going to have conflict with current trajectory
+                return None  # flights are not going to have conflict with the current trajectory
 
             discriminant = max(0.0, discriminant)
             sqrt_d = math.sqrt(discriminant)
-            # calculate time of an entry and exit to a conflict
+            # calculate the time of an entry and exit to a conflict
             time_to_horizontal_entry = (-b - sqrt_d) / (2 * a)
             time_to_horizontal_exit = (-b + sqrt_d) / (2 * a)
 

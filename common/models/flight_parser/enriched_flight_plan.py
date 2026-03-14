@@ -1,8 +1,8 @@
 from dataclasses import dataclass
 from typing import List, Optional
 
-from models.flight_parser.enriched_route_segment import EnrichedRouteSegment
-from models.flight_parser.initial_route_config import InitialRouteConfig
+from common.models.flight_parser.enriched_route_segment import EnrichedRouteSegment
+from common.models.flight_parser.initial_route_config import InitialRouteConfig
 
 @dataclass
 class EnrichedFlightPlan:

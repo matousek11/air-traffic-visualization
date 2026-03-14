@@ -109,5 +109,5 @@ class MTCDEventCheck:
 
             conflict_count += 1
 
-        logger.info(f"Found {conflict_count} potential conflict pairs")
+        logger.info("Found %s potential conflict pairs", conflict_count)
         return conflicts

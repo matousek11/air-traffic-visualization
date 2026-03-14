@@ -74,7 +74,7 @@ class BlueskyService:
 
     @staticmethod
     def create_flight(flight: Flight) -> None:
-        logger.info(f"Creating flight {flight.get_creation_string()}...")
+        logger.info("Creating flight %s...", flight.get_creation_string())
         stack.stack(flight.get_creation_string())
         stack.stack(flight.get_vertical_speed())
         stack.stack(f"{flight.flight_id} LNAV ON")
@@ -84,7 +84,7 @@ class BlueskyService:
         try:
             idx = bs.traf.id.index(flight_id)
         except ValueError:
-            logger.info(f"Aircraft {flight_id} not found")
+            logger.info("Aircraft %s not found", flight_id)
             return None
 
         lat = bs.traf.lat[idx]
@@ -95,6 +95,7 @@ class BlueskyService:
         vertical_speed = bs.traf.vs[idx] * 3.28084 * 60  # m/s to ft/min
         gs = bs.traf.gs[idx] * 1.94384449 # from km/h to kts
         flight_plan = self.flight_plan_service.get_flight_plan(flight_id)
+        route_string = self.flight_plan_service.get_route_string(flight_id)
         # Get wind on position of plane (getdata returns windnorth, windeast)
         alt_ft = int(bs.traf.alt[idx] * 3.28084)
         windnorth, windeast = bs.traf.wind.getdata(bs.traf.lat[idx], bs.traf.lon[idx], bs.traf.alt[idx])
@@ -112,6 +113,7 @@ class BlueskyService:
             speed=int(gs),
             vertical_speed=int(vertical_speed),
             flight_plan=flight_plan,
+            route_string=route_string,
             wind=Wind(heading=wind_heading, speed=wind_speed, lat=lat, lon=lon, altitude=alt_ft)
         )
 
@@ -129,6 +131,7 @@ class BlueskyService:
             vertical_speed = bs.traf.vs[i] * 3.28084 * 60 # m/s to ft/min
             gs = bs.traf.gs[i] * 1.94384449 # from km/h to kts
             flight_plan = self.flight_plan_service.get_flight_plan(acid)
+            route_string = self.flight_plan_service.get_route_string(acid)
             # Get wind on position of plane (getdata returns windnorth, windeast)
             alt_ft = int(bs.traf.alt[i] * 3.28084)
             windnorth, windeast = bs.traf.wind.getdata(bs.traf.lat[i], bs.traf.lon[i], bs.traf.alt[i])
@@ -147,6 +150,7 @@ class BlueskyService:
                     speed=int(gs),
                     vertical_speed=int(vertical_speed),
                     flight_plan=flight_plan,
+                    route_string=route_string,
                     wind=Wind(heading=wind_heading, speed=wind_speed, lat=lat, lon=lon, altitude=alt_ft)
                 )
             )
@@ -181,4 +185,4 @@ class BlueskyService:
         else:
             return  # Cannot decrease below 1.0
         
-        logger.info(f"Simulation speed set to {self.current_speed}x")
+        logger.info("Simulation speed set to %sx", self.current_speed)

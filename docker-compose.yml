@@ -67,8 +67,8 @@ services:
       - ./common:/workspace/common
   database-api:
     build:
-      context: ./database-service
-      dockerfile: Dockerfile.api
+      context: .
+      dockerfile: database-service/Dockerfile.api
     container_name: mtcd-database-api
     restart: unless-stopped
     depends_on:
@@ -82,7 +82,8 @@ services:
       DB_PORT: 5432
       DB_NAME: atm
     volumes:
-      - ./database-service:/app
+      - ./database-service:/app/database-service
+      - ./common:/app/common 
 
 volumes:
   timescale_data:

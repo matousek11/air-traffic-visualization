@@ -16,7 +16,7 @@ class FlightLikeForTest:
     lat: float
     lon: float
     flight_level: int
-    speed: int
+    ground_speed: int
     track_heading: int
     vertical_speed: float
 
@@ -96,7 +96,7 @@ def test_calculate_closest_approach_point_none_flight_1_raises() -> None:
     toolkit = MtcdToolkit()
     flight2 = FlightLikeForTest(
         lat=50.0, lon=14.0, flight_level=350,
-        speed=400, track_heading=90, vertical_speed=0.0
+        ground_speed=400, track_heading=90, vertical_speed=0.0
     )
     msg = "Both flight objects must be provided"
     with pytest.raises(ValueError, match=msg):
@@ -112,7 +112,7 @@ def test_calculate_closest_approach_point_none_flight_2_raises() -> None:
     toolkit = MtcdToolkit()
     flight1 = FlightLikeForTest(
         lat=50.0, lon=14.0, flight_level=350,
-        speed=400, track_heading=90, vertical_speed=0.0
+        ground_speed=400, track_heading=90, vertical_speed=0.0
     )
     msg = "Both flight objects must be provided"
     with pytest.raises(ValueError, match=msg):
@@ -124,7 +124,7 @@ def test_calculate_cpa_identical_velocity_returns_none() -> None:
     toolkit = MtcdToolkit()
     flight = FlightLikeForTest(
         lat=50.0, lon=14.0, flight_level=350,
-        speed=400, track_heading=0, vertical_speed=0.0
+        ground_speed=400, track_heading=0, vertical_speed=0.0
     )
     result = toolkit.calculate_closest_approach_point(flight, flight)
     assert result is None
@@ -136,11 +136,11 @@ def test_calculate_closest_approach_point_cpa_passed_returns_none() -> None:
     # Flight 1 east & faster; flight 2 west & slower; both east. CPA in the past.
     flight1 = FlightLikeForTest(
         lat=50.0, lon=14.05, flight_level=350,
-        speed=400, track_heading=90, vertical_speed=0.0
+        ground_speed=400, track_heading=90, vertical_speed=0.0
     )
     flight2 = FlightLikeForTest(
         lat=50.0, lon=13.98, flight_level=350,
-        speed=200, track_heading=90, vertical_speed=0.0
+        ground_speed=200, track_heading=90, vertical_speed=0.0
     )
     result = toolkit.calculate_closest_approach_point(flight1, flight2)
     assert result is None
@@ -151,11 +151,11 @@ def test_calculate_closest_approach_point_converging_returns_result() -> None:
     toolkit = MtcdToolkit()
     flight1 = FlightLikeForTest(
         lat=50.0, lon=14.0, flight_level=350,
-        speed=400, track_heading=90, vertical_speed=0.0
+        ground_speed=400, track_heading=90, vertical_speed=0.0
     )
     flight2 = FlightLikeForTest(
         lat=50.0, lon=14.04, flight_level=350,
-        speed=400, track_heading=270, vertical_speed=0.0
+        ground_speed=400, track_heading=270, vertical_speed=0.0
     )
     result = toolkit.calculate_closest_approach_point(flight1, flight2)
     assert result is not None

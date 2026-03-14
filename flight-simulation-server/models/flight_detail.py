@@ -8,7 +8,8 @@ from .wind import Wind
 
 class FlightDetail(Flight):
     """
-    Extends Flight object with flight plan and wind
+    Extends a Flight object with flight plan and wind
     """
     flight_plan: list[Waypoint]
+    route_string: str | None = None
     wind: Wind

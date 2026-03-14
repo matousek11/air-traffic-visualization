@@ -57,6 +57,8 @@ confidence=
 # multiple time (only on the command line, not in the configuration file where
 # it should appear only once). See also the "--disable" option for examples.
 #enable=
+# Explicitly enable logging f-string check (W1203)
+enable=logging-fstring-interpolation
 
 # Disable the message, report, category or checker with the given id(s). You
 # can either give multiple identifiers separated by comma (,) or put this

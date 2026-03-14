@@ -40,6 +40,22 @@ class FlightPlanService:
 
         return self.flight_plans[flight_id]
 
+    def get_route_string(self, flight_id: str) -> str | None:
+        """
+        Build a route string with DCT between waypoints for MTCD pipeline.
+
+        Args:
+            flight_id: ID of the flight.
+
+        Returns:
+            None if the flight has no waypoints; otherwise string like
+            "WPT1 DCT WPT2 DCT WPT3".
+        """
+        waypoints = self.get_flight_plan(flight_id)
+        if not waypoints:
+            return None
+        return " DCT ".join(w.name for w in waypoints)
+
     def reset(self) -> None:
         """
         Deletes all currently stored flight plans

@@ -7,3 +7,4 @@ redis~=6.2.0
 fastapi[standard]~=0.115.12
 bluesky-simulator[full]
 numpy
+lark

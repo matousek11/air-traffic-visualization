@@ -1,11 +1,11 @@
 from typing import List
 
 from models import Airway, FlightPosition, Fix, Nav
-from models.flight_parser.enriched_flight_plan import EnrichedFlightPlan
-from models.flight_parser.enriched_route_segment import EnrichedRouteSegment
-from models.flight_parser.parsed_flight_plan import ParsedFlightPlan
-from models.flight_parser.raw_route_segment import RawRouteSegment
-from models.flight_parser.waypoint import Waypoint
+from common.models.flight_parser.enriched_flight_plan import EnrichedFlightPlan
+from common.models.flight_parser.enriched_route_segment import EnrichedRouteSegment
+from common.models.flight_parser.parsed_flight_plan import ParsedFlightPlan
+from common.models.flight_parser.raw_route_segment import RawRouteSegment
+from common.models.flight_parser.waypoint import Waypoint
 from repositories.airway_repository import AirwayRepository
 from repositories.fix_repository import FixRepository
 from repositories.nav_repository import NavRepository
@@ -43,7 +43,7 @@ class RouteEnricher:
             if segment.flight_level is not None:
                 self.current_flight_level = segment.flight_level
 
-            if segment.via_airway is None:
+            if segment.via_airway is None or segment.via_airway == "DCT":
                 # doesn't contain airway append just waypoint
                 enriched_segments.append(
                     self._enrich_single_segment(flight_position, segment)
@@ -74,7 +74,7 @@ class RouteEnricher:
             flight_position: FlightPosition,
             segment: RawRouteSegment
     ) -> EnrichedRouteSegment:
-        """Enrich single segment when on airway is set"""
+        """Enrich the single segment when on airway is set"""
         true_air_speed = segment.true_air_speed if segment.true_air_speed is not None \
             else self.current_true_air_speed
         flight_level = segment.flight_level if segment.flight_level is not None \

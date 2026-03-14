@@ -32,6 +32,7 @@ def upgrade() -> None:
         sa.Column("track_heading", sa.Integer),
         sa.Column("vertical_rate_fpm", sa.Integer),
         sa.Column("sector_id", sa.Text),
+        sa.Column("route", sa.Text),
         sa.Column(
             "geom",
             Geography(geometry_type="POINT", srid=4326),

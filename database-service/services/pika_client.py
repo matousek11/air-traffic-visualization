@@ -62,7 +62,7 @@ class PikaClient:
         )
 
         self.running = True
-        logger.info(f"Worker started, waiting for messages on queue '{self.queue_name}'")
+        logger.info("Worker started, waiting for messages on queue '%s'", self.queue_name)
 
         try:
             self.channel.start_consuming()
@@ -101,10 +101,10 @@ class PikaClient:
                     delivery_mode=1,
                 ),
             )
-            logger.debug(f"Sent job to queue {self.queue_name}: {job_data}")
+            logger.debug("Sent job to queue %s: %s", self.queue_name, job_data)
             return True
         except Exception as e:
-            logger.error(f"Failed to send job: {e}")
+            logger.error("Failed to send job: %s", e)
             return False
 
     def _connect(self) -> None:
@@ -119,9 +119,9 @@ class PikaClient:
             self.connection = pika.BlockingConnection(parameters)
             self.channel = self.connection.channel()
             self.channel.queue_declare(queue=self.queue_name, durable=True)
-            logger.info(f"Connected to RabbitMQ at {self.host}:{self.port}")
+            logger.info("Connected to RabbitMQ at %s:%s", self.host, self.port)
         except AMQPConnectionError as e:
-            logger.error(f"Failed to connect to RabbitMQ: {e}")
+            logger.error("Failed to connect to RabbitMQ: %s", e)
             raise
 
     def _handle_message(
@@ -142,25 +142,25 @@ class PikaClient:
         """
         try:
             job_data = json.loads(body)
-            logger.info(f"Processing job: {job_data}")
+            logger.info("Processing job: %s", job_data)
 
             success = self.process_message(job_data)
 
             if success:
                 ch.basic_ack(delivery_tag=method.delivery_tag)
-                logger.info(f"Job processed successfully: {job_data}")
+                logger.info("Job processed successfully: %s", job_data)
             else:
                 # Reject and requeue on failure
                 ch.basic_nack(
                     delivery_tag=method.delivery_tag, requeue=True
                 )
-                logger.warning(f"Job processing failed, requeuing: {job_data}")
+                logger.warning("Job processing failed, requeuing: %s", job_data)
 
         except json.JSONDecodeError as e:
-            logger.error(f"Invalid JSON in message: {e}")
+            logger.error("Invalid JSON in message: %s", e)
             ch.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
         except Exception as e:
-            logger.error(f"Error processing message: {e}", exc_info=True)
+            logger.error("Error processing message: %s", e, exc_info=True)
             ch.basic_nack(delivery_tag=method.delivery_tag, requeue=True)
 
     def _disconnect(self) -> None:

@@ -1,7 +1,7 @@
 from lark import Lark
 
-from models.flight_parser.parsed_flight_plan import ParsedFlightPlan
-from services.route_tree_transformer import RouteTreeTransformer
+from common.models.flight_parser.parsed_flight_plan import ParsedFlightPlan
+from common.helpers.route_tree_transformer import RouteTreeTransformer
 
 
 class RouteParser:

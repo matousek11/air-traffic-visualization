@@ -47,7 +47,7 @@ class DataSynchronizer:
         self.running = True
         self.thread = threading.Thread(target=self._sync_loop, daemon=True)
         self.thread.start()
-        logger.info(f"Data synchronizer started (interval: {self.sync_interval}s)")
+        logger.info("Data synchronizer started (interval: %ss)", self.sync_interval)
 
     def stop(self) -> None:
         """Stop the synchronization thread."""
@@ -66,7 +66,7 @@ class DataSynchronizer:
             try:
                 self._sync_flights()
             except Exception as e:
-                logger.error(f"Error during synchronization: {e}", exc_info=True)
+                logger.error("Error during synchronization: %s", e, exc_info=True)
 
             # Sleep for sync_interval seconds
             time.sleep(self.sync_interval)
@@ -85,15 +85,15 @@ class DataSynchronizer:
                 db.commit()
             except Exception as e:
                 db.rollback()
-                logger.error(f"Error processing flights: {e}", exc_info=True)
+                logger.error("Error processing flights: %s", e, exc_info=True)
                 raise
             finally:
                 db.close()
 
         except httpx.HTTPError as e:
-            logger.error(f"HTTP error fetching flights: {e}")
+            logger.error("HTTP error fetching flights: %s", e)
         except Exception as e:
-            logger.error(f"Unexpected error in _sync_flights: {e}", exc_info=True)
+            logger.error("Unexpected error in _sync_flights: %s", e, exc_info=True)
 
     def _process_flight(self, db: Session, flight_data: dict) -> None:
         """
@@ -119,7 +119,7 @@ class DataSynchronizer:
             db.add(flight)
             try:
                 db.flush()
-                logger.info(f"Created new flight: {flight_id}")
+                logger.info("Created new flight: %s", flight_id)
             except IntegrityError:
                 # Flight might have been created by another thread
                 db.rollback()
@@ -146,8 +146,9 @@ class DataSynchronizer:
             track_heading=flight_data.get("track_heading"),
             vertical_rate_fpm=int(flight_data.get("vertical_speed", 0)),
             sector_id='',  # Not available in API TODO: implement later on
+            route=flight_data.get("route_string"),
             geom=geom,
         )
 
         db.add(flight_position)
-        logger.debug(f"Added position for flight {flight_id} at {current_time}")
+        logger.debug("Added position for flight %s at %s", flight_id, current_time)

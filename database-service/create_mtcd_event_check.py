@@ -38,14 +38,14 @@ def create_detection_jobs(conflicts: Dict[str, List[str]]) -> Tuple[int, int]:
                 )
                 if success:
                     jobs_sent += 1
-                    logger.debug(f"Sent detection job for pair: {flight_id_1} - {flight_id_2}")
+                    logger.debug("Sent detection job for pair: %s - %s", flight_id_1, flight_id_2)
                 else:
                     jobs_failed += 1
-                    logger.warning(f"Failed to send job for pair: {flight_id_1} - {flight_id_2}")
+                    logger.warning("Failed to send job for pair: %s - %s", flight_id_1, flight_id_2)
 
-    logger.info(f"Sent {jobs_sent} detection jobs to queue '{CheckMtcdJob.get_job_queue()}'")
+    logger.info("Sent %s detection jobs to queue '%s'", jobs_sent, CheckMtcdJob.get_job_queue())
     if jobs_failed > 0:
-        logger.warning(f"Failed to send {jobs_failed} jobs")
+        logger.warning("Failed to send %s jobs", jobs_failed)
 
     return jobs_sent, jobs_failed
 

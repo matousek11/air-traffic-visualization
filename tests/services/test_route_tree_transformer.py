@@ -6,13 +6,13 @@ from typing import Any, List, Tuple
 import lark
 import pytest
 
-from models.flight_parser.arrival_procedure import ArrivalProcedure
-from models.flight_parser.departure_procedure import DepartureProcedure
-from models.flight_parser.initial_route_config import InitialRouteConfig
-from models.flight_parser.parsed_flight_plan import ParsedFlightPlan
-from models.flight_parser.raw_route_segment import RawRouteSegment
-from services.route_parser import RouteParser
-from services.route_tree_transformer import RouteTreeTransformer
+from common.models.flight_parser.arrival_procedure import ArrivalProcedure
+from common.models.flight_parser.departure_procedure import DepartureProcedure
+from common.models.flight_parser.initial_route_config import InitialRouteConfig
+from common.models.flight_parser.parsed_flight_plan import ParsedFlightPlan
+from common.models.flight_parser.raw_route_segment import RawRouteSegment
+from common.helpers.route_parser import RouteParser
+from common.helpers.route_tree_transformer import RouteTreeTransformer
 
 
 # ---- change ----

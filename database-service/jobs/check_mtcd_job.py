@@ -1,39 +1,25 @@
+import time
 from datetime import datetime, timezone
-from typing import Any, Dict, Tuple
+from typing import Any, Dict
+
+from sqlalchemy.orm import Session
 
 from common.helpers.logging_service import LoggingService
+from common.helpers.mtcd_pipeline import MtcdPipeline
+from common.helpers.physics_calculator import PhysicsCalculator
+from common.models.flight_position_adapter import FlightPositionAdapter
 from models import MTCDEvent
 from repositories.flight_position_repository import FlightPositionRepository
+from repositories.mtcd_event_repository import MtcdEventRepository
 from services.database import SessionLocal
-from common.helpers.mtcd_toolkit import MtcdToolkit
+from common.helpers.mtcd_toolkit import Conflict
 
 logger = LoggingService.get_logger(__name__)
-
-class FlightPositionAdapter:
-    """Adapter to convert FlightPosition from database to Flight-like object for MtcdToolkit."""
-
-    def __init__(self, flight_position, flight_id: str):
-        """
-        Initialize adapter from FlightPosition.
-
-        Args:
-            flight_position: FlightPosition object from database
-            flight_id: Flight ID
-        """
-        self.flight_id = flight_id
-        self.lat = flight_position.lat
-        self.lon = flight_position.lon
-        self.flight_level = flight_position.flight_level if flight_position.flight_level else 0
-        self.speed = flight_position.ground_speed_kt
-        self.heading = flight_position.heading
-        self.track_heading = flight_position.track_heading
-        # vertical_speed in ft/min (same as vertical_rate_fpm)
-        self.vertical_speed = float(flight_position.vertical_rate_fpm or 0)
 
 class CheckMtcdJob:
     """Job that will put new mtcd events into db or update existing one for selected flights"""
     def __init__(self) -> None:
-        self.mtcd_toolkit = MtcdToolkit()
+        self.mtcd_pipeline = MtcdPipeline()
 
     @staticmethod
     def get_job_queue() -> str:
@@ -55,7 +41,13 @@ class CheckMtcdJob:
         }
 
     def execute(self, job_data: Dict[str, Any]) -> bool:
-        flight_id_1, flight_id_2 = self._validate_data(job_data)
+        start_timestamp = time.time()
+        validated_input_data = self._validate_data(job_data)
+        if validated_input_data is None:
+            logger.error("Job validation failed, skipping execution of MTCD.")
+            return False
+
+        flight_id_1, flight_id_2 = validated_input_data
         flight_1_position = FlightPositionAdapter(
             FlightPositionRepository.get_latest_position(flight_id_1),
             flight_id_1
@@ -65,40 +57,67 @@ class CheckMtcdJob:
             flight_id_2
         )
 
-        result = self.mtcd_toolkit.calculate_closest_approach_point(
+        predicted_conflicts = self.mtcd_pipeline.run_mtcd(
             flight_1_position, flight_2_position
         )
 
-        logger.info(f"Result: {result}")
-        if result is None:
+        logger.info("Result: %s", predicted_conflicts)
+        db = SessionLocal()
+        if len(predicted_conflicts) == 0:
             # Set active MTCDs between selected pair of flights to inactive
-            self._archive_mtcd(flight_id_1, flight_id_2)
-            logger.info(f"Flights {flight_id_1} & {flight_id_2} doesn't have CPA or it was already passed")
+            self._archive_all_conflicts(flight_id_1, flight_id_2, [], db)
+            db.commit()
+            db.close()
+            logger.info(
+                "Flights %s & %s doesn't have conflicts or they were already passed",
+                flight_id_1, flight_id_2,
+            )
             return True
 
-        (
-            horizontal_distance,
-            vertical_distance,
-            _time_to_conflict_entry,
-            _time_to_conflict_exit,
-            time_to_closest_approach,
-            *_positions,
-            _middle_point,
-        ) = result
+        # get all currently existing conflicts in db
+        existing_active_conflicts = MtcdEventRepository.get_all_for_pair(flight_id_1, flight_id_2)
+        if existing_active_conflicts is None:
+            raise ValueError("Failed to fetch data MTCD events from database")
 
-        if not self._is_conflict(
-                horizontal_distance,
-                vertical_distance,
-                time_to_closest_approach
-        ):
-            # Set active MTCDs between selected pair of flights to inactive
-            self._archive_mtcd(flight_id_1, flight_id_2)
-            logger.info(f"Flights {flight_id_1} & {flight_id_2} doesn't have CPA that would trigger a conflict")
-            return True
+        physics_calculator = PhysicsCalculator()
+        updated_conflict_ids: list[int] = []
+        for predicted_conflict in predicted_conflicts:
+            existing_conflict_id = None
+            for existing_conflict in existing_active_conflicts:
+                #   update those that are 15 NM miles or closer to previously created conflicts
+                if existing_conflict.is_close_to(physics_calculator, predicted_conflict):
+                    # keep track of updated conflicts
+                    updated_conflict_ids.append(existing_conflict.id)
+                    existing_conflict_id = existing_conflict.id
+                    break
+            # Create or update predicted conflicts
+            is_success = self._create_mtcd_event(
+                flight_id_1, flight_id_2, predicted_conflict, db, existing_conflict_id,
+            )
+            if not is_success:
+                db.rollback()
+                db.close()
+                return False
 
-        return self._create_mtcd_event(flight_id_1, flight_id_2, result)
+        # archive those that were created before, but now weren't detected
+        is_success = self._archive_all_conflicts(
+            flight_id_1, flight_id_2, updated_conflict_ids, db
+        )
 
-    def _validate_data(self, job_data: Dict[str, Any]) -> Tuple[str, str] | None:
+        # Commit all changes
+        if is_success:
+            db.commit()
+        else:
+            db.rollback()
+        db.close()
+
+        logger.info(
+            "MTCD detection between %s and %s took %s seconds",
+            flight_id_1, flight_id_2, time.time() - start_timestamp,
+        )
+        return is_success
+
+    def _validate_data(self, job_data: Dict[str, Any]) -> tuple[str, str] | None:
         """Checks whether all required data are in job_data"""
         flight_id_1 = job_data.get("flight_id_1")
         flight_id_2 = job_data.get("flight_id_2")
@@ -108,130 +127,67 @@ class CheckMtcdJob:
             return None
 
         if flight_id_1 == flight_id_2:
-            logger.warning(f"Same flight ID provided: {flight_id_1}")
+            logger.warning("Same flight ID provided: %s", flight_id_1)
             return None
 
         return flight_id_1, flight_id_2
-
-    def _is_conflict(
-            self,
-            horizontal_distance: float,
-            vertical_distance: float,
-            time_to_closest_approach: float,
-    ) -> bool:
-        """Validates whether minimum distance is going to be violated"""
-        # Typical separation minima: 5 NM horizontal, 1000 ft vertical
-        return (
-                horizontal_distance < 5.0  # 5 nautical miles
-                and abs(vertical_distance) < (1000 / 6076)  # ~1000 ft in NM
-                and time_to_closest_approach >= 0
-        )
 
     def _create_mtcd_event(
             self,
             flight_id_1: str,
             flight_id_2: str,
-            result: Tuple,
+            conflict: Conflict,
+            db: Session,
+            existing_conflict_id: int | None = None,
     ) -> bool:
         """Will create or update MTCD event connected to selected two flights"""
-        (
-            horizontal_distance,
-            vertical_distance,
-            time_to_conflict_entry,
-            time_to_conflict_exit,
-            _time_to_closest_approach,
-            flight_1_conflict_entry_pos,
-            flight_1_conflict_exit_pos,
-            flight_2_conflict_entry_pos,
-            flight_2_conflict_exit_pos,
-            middle_point,
-        ) = result
-
-        db = SessionLocal()
         try:
             # Check if event already exists
-            existing_event = (
-                db.query(MTCDEvent)
-                .filter(
+            query = db.query(MTCDEvent).filter(
                     MTCDEvent.flight_id_1.in_([flight_id_1, flight_id_2]),
                     MTCDEvent.flight_id_2.in_([flight_id_1, flight_id_2]),
                     MTCDEvent.active == True,
                 )
-                .first()
-            )
+
+            if existing_conflict_id:
+                query = query.filter(MTCDEvent.id == existing_conflict_id)
+            existing_event: MTCDEvent | None = query.first()
 
             if not existing_event:
                 # Create new MTCD event
-                mtcd_event = MTCDEvent(
-                    flight_id_1=flight_id_1,
-                    flight_id_2=flight_id_2,
-                    detected_at=datetime.now(timezone.utc),
-                    horizontal_distance=float(horizontal_distance),
-                    vertical_distance=float(vertical_distance),
-                    remaining_time=float(time_to_conflict_entry),
-                    middle_point_lat=float(middle_point.lat),
-                    middle_point_lon=float(middle_point.lon),
-                    flight_1_conflict_entry_lat=float(flight_1_conflict_entry_pos.lat),
-                    flight_1_conflict_entry_lon=float(flight_1_conflict_entry_pos.lon),
-                    flight_1_conflict_entry_flight_level=float(flight_1_conflict_entry_pos.flight_level),
-                    flight_1_conflict_exit_lat=float(flight_1_conflict_exit_pos.lat),
-                    flight_1_conflict_exit_lon=float(flight_1_conflict_exit_pos.lon),
-                    flight_1_conflict_exit_flight_level=float(flight_1_conflict_exit_pos.flight_level),
-                    flight_2_conflict_entry_lat=float(flight_2_conflict_entry_pos.lat),
-                    flight_2_conflict_entry_lon=float(flight_2_conflict_entry_pos.lon),
-                    flight_2_conflict_entry_flight_level=float(flight_2_conflict_entry_pos.flight_level),
-                    flight_2_conflict_exit_lat=float(flight_2_conflict_exit_pos.lat),
-                    flight_2_conflict_exit_lon=float(flight_2_conflict_exit_pos.lon),
-                    flight_2_conflict_exit_flight_level=float(flight_2_conflict_exit_pos.flight_level),
-                    active=True,
-                    last_checked=datetime.now(timezone.utc),
-                )
+                mtcd_event = MTCDEvent.populate(flight_id_1, flight_id_2, conflict)
                 db.add(mtcd_event)
-                db.commit()
                 logger.info(
-                    f"Created MTCD event for {flight_id_1} and {flight_id_2}"
+                    "Created MTCD event for %s and %s",
+                    flight_id_1, flight_id_2,
                 )
             else:
                 # Update existing event
-                existing_event.horizontal_distance = horizontal_distance
-                existing_event.vertical_distance = vertical_distance
-                existing_event.remaining_time = time_to_conflict_entry
-                existing_event.middle_point_lat = middle_point.lat
-                existing_event.middle_point_lon = middle_point.lon
-                existing_event.flight_1_conflict_entry_lat = flight_1_conflict_entry_pos.lat
-                existing_event.flight_1_conflict_entry_lon = flight_1_conflict_entry_pos.lon
-                existing_event.flight_1_conflict_entry_flight_level = flight_1_conflict_entry_pos.flight_level
-                existing_event.flight_1_conflict_exit_lat = flight_1_conflict_exit_pos.lat
-                existing_event.flight_1_conflict_exit_lon = flight_1_conflict_exit_pos.lon
-                existing_event.flight_1_conflict_exit_flight_level = flight_1_conflict_exit_pos.flight_level
-                existing_event.flight_2_conflict_entry_lat = flight_2_conflict_entry_pos.lat
-                existing_event.flight_2_conflict_entry_lon = flight_2_conflict_entry_pos.lon
-                existing_event.flight_2_conflict_entry_flight_level = flight_2_conflict_entry_pos.flight_level
-                existing_event.flight_2_conflict_exit_lat = flight_2_conflict_exit_pos.lat
-                existing_event.flight_2_conflict_exit_lon = flight_2_conflict_exit_pos.lon
-                existing_event.flight_2_conflict_exit_flight_level = flight_2_conflict_exit_pos.flight_level
-                existing_event.last_checked = datetime.now(timezone.utc)
-                db.commit()
+                existing_event.update_conflict(conflict)
                 logger.debug(
-                    f"Updated MTCD event for {flight_id_1} and {flight_id_2}"
+                    "Updated MTCD event for %s and %s",
+                    flight_id_1, flight_id_2,
                 )
         except Exception as e:
-            logger.error(f"Error processing MTCD conflict check: {e}", exc_info=True)
-            db.rollback()
+            logger.error("Error processing MTCD conflict check: %s", e, exc_info=True)
             return False
-        finally:
-            db.close()
 
         return True
 
-    def _archive_mtcd(self, flight_id_1: str, flight_id_2: str) -> None:
+    def _archive_all_conflicts(
+            self,
+            flight_id_1: str,
+            flight_id_2: str,
+            updated_conflict_ids: list[int],
+            db: Session,
+    ) -> bool:
         """Archive currently active MTCDs between selected pair of flights"""
-        db = SessionLocal()
         try:
             # Find active MTCD events between the two flights (in either order)
             active_events = (
                 db.query(MTCDEvent)
                 .filter(
+                    MTCDEvent.id.notin_(updated_conflict_ids),
                     MTCDEvent.flight_id_1.in_([flight_id_1, flight_id_2]),
                     MTCDEvent.flight_id_2.in_([flight_id_1, flight_id_2]),
                     MTCDEvent.active == True,
@@ -243,12 +199,12 @@ class CheckMtcdJob:
                 for event in active_events:
                     event.active = False
                     event.last_checked = datetime.now(timezone.utc)
-                db.commit()
-                logger.info(
-                    f"Archived {len(active_events)} MTCD event(s) for {flight_id_1} and {flight_id_2}"
-                )
+                    logger.info(
+                        "Archived MTCD event with id %s.",
+                        event.id,
+                    )
         except Exception as e:
-            logger.error(f"Error archiving MTCD events: {e}", exc_info=True)
-            db.rollback()
-        finally:
-            db.close()
+            logger.error("Error archiving MTCD events: %s", e, exc_info=True)
+            return False
+
+        return True
