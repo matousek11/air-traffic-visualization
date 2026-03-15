@@ -7,7 +7,6 @@ Example: "2  38.08777778 -077.32491667      0   396  50    0.0 APH  A P HILL NDB
 """
 
 import sys
-import re
 from pathlib import Path
 
 # Add parent directories to path to import from database-service and common
@@ -94,7 +93,7 @@ def parse_nav_line(line: str) -> tuple[float, float, str] | None:
         
         return (lat, lon, identificator)
     except (ValueError, IndexError) as e:
-        logger.warning(f"Failed to parse line: {line[:50]}... Error: {e}")
+        logger.warning("Failed to parse line: %s... Error: %s", line[:50], e)
         return None
 
 
@@ -112,11 +111,11 @@ def import_nav_data(nav_file_path: str, batch_size: int = 1000) -> None:
     
     db: Session = SessionLocal()
     try:
-        logger.info(f"Starting import from {nav_file_path}")
+        logger.info("Starting import from %s", nav_file_path)
         
         # Clear existing data (optional - comment out if you want to keep existing data)
         deleted_count = db.query(Nav).delete()
-        logger.info(f"Deleted {deleted_count} existing nav records")
+        logger.info("Deleted %s existing nav records", deleted_count)
         db.commit()
         
         navs = []
@@ -130,7 +129,7 @@ def import_nav_data(nav_file_path: str, batch_size: int = 1000) -> None:
                 if parsed is None:
                     total_skipped += 1
                     if line_num <= 10:  # Log first few skipped lines for debugging
-                        logger.debug(f"Skipped line {line_num}: {line[:50]}...")
+                        logger.debug("Skipped line %s: %s...", line_num, line[:50])
                     continue
                 
                 lat, lon, identificator = parsed
@@ -152,10 +151,10 @@ def import_nav_data(nav_file_path: str, batch_size: int = 1000) -> None:
                         db.add_all(navs)
                         db.commit()
                         total_imported += len(navs)
-                        logger.info(f"Imported batch: {total_imported} navs so far...")
+                        logger.info("Imported batch: %s navs so far...", total_imported)
                     except Exception as e:
                         db.rollback()
-                        logger.warning(f"Batch insert failed, trying individual inserts: {e}")
+                        logger.warning("Batch insert failed, trying individual inserts: %s", e)
                         # Fallback to individual inserts
                         for nav_obj in navs:
                             try:
@@ -164,7 +163,10 @@ def import_nav_data(nav_file_path: str, batch_size: int = 1000) -> None:
                                 total_imported += 1
                             except Exception as insert_error:
                                 db.rollback()
-                                logger.warning(f"Failed to insert nav {nav_obj.identificator}: {insert_error}")
+                                logger.warning(
+                                    "Failed to insert nav %s: %s",
+                                    nav_obj.identificator, insert_error,
+                                )
                                 total_skipped += 1
                     navs = []
         
@@ -176,7 +178,7 @@ def import_nav_data(nav_file_path: str, batch_size: int = 1000) -> None:
                 total_imported += len(navs)
             except Exception as e:
                 db.rollback()
-                logger.warning(f"Final batch insert failed, trying individual inserts: {e}")
+                logger.warning("Final batch insert failed, trying individual inserts: %s", e)
                 for nav_obj in navs:
                     try:
                         db.add(nav_obj)
@@ -184,14 +186,20 @@ def import_nav_data(nav_file_path: str, batch_size: int = 1000) -> None:
                         total_imported += 1
                     except Exception as insert_error:
                         db.rollback()
-                        logger.warning(f"Failed to insert nav {nav_obj.identificator}: {insert_error}")
+                        logger.warning(
+                            "Failed to insert nav %s: %s",
+                            nav_obj.identificator, insert_error,
+                        )
                         total_skipped += 1
         
-        logger.info(f"Import completed: {total_imported} navs imported, {total_skipped} skipped")
+        logger.info(
+            "Import completed: %s navs imported, %s skipped",
+            total_imported, total_skipped,
+        )
         
     except Exception as e:
         db.rollback()
-        logger.error(f"Error importing nav data: {e}", exc_info=True)
+        logger.error("Error importing nav data: %s", e, exc_info=True)
         raise
     finally:
         db.close()
@@ -203,12 +211,12 @@ if __name__ == "__main__":
     nav_file = script_dir / "nav.dat"
     
     if not nav_file.exists():
-        logger.error(f"nav.dat not found in {script_dir}")
+        logger.error("nav.dat not found in %s", script_dir)
         sys.exit(1)
     
     try:
         import_nav_data(str(nav_file))
         logger.info("Nav data import completed successfully")
     except Exception as e:
-        logger.error(f"Import failed: {e}", exc_info=True)
+        logger.error("Import failed: %s", e, exc_info=True)
         sys.exit(1)

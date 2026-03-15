@@ -45,7 +45,7 @@ def parse_airway_line(line: str) -> tuple | None:
         # Minimum 10 parts: start_wp, start_lat, start_lon, end_wp, end_lat, end_lon, dir, base_alt, top_alt, airway_id
         # But airway_id can contain spaces or dashes, so we need at least 10 parts
         if len(parts) < 10:
-            logger.warning(f"Not enough parts in line: {line}")
+            logger.warning("Not enough parts in line: %s", line)
             return None
         
         # First 9 parts are fixed format
@@ -67,7 +67,7 @@ def parse_airway_line(line: str) -> tuple | None:
             direction, base_altitude, top_altitude, airway_id
         )
     except (ValueError, IndexError) as e:
-        logger.warning(f"Failed to parse line: {line[:80]}... Error: {e}")
+        logger.warning("Failed to parse line: %s... Error: %s", line[:80], e)
         return None
 
 
@@ -85,11 +85,11 @@ def import_airway_data(airway_file_path: str, batch_size: int = 1000) -> None:
     
     db: Session = SessionLocal()
     try:
-        logger.info(f"Starting import from {airway_file_path}")
+        logger.info("Starting import from %s", airway_file_path)
         
         # Clear existing data (optional - comment out if you want to keep existing data)
         deleted_count = db.query(Airway).delete()
-        logger.info(f"Deleted {deleted_count} existing airway records")
+        logger.info("Deleted %s existing airway records", deleted_count)
         db.commit()
         
         airways = []
@@ -148,10 +148,10 @@ def import_airway_data(airway_file_path: str, batch_size: int = 1000) -> None:
                         db.add_all(airways)
                         db.commit()
                         total_imported += len(airways)
-                        logger.info(f"Imported batch: {total_imported} airways so far...")
+                        logger.info("Imported batch: %s airways so far...", total_imported)
                     except Exception as e:
                         db.rollback()
-                        logger.warning(f"Batch insert failed, trying individual inserts: {e}")
+                        logger.warning("Batch insert failed, trying individual inserts: %s", e)
                         # Fallback to individual inserts
                         for airway_obj in airways:
                             try:
@@ -175,7 +175,7 @@ def import_airway_data(airway_file_path: str, batch_size: int = 1000) -> None:
                 total_imported += len(airways)
             except Exception as e:
                 db.rollback()
-                logger.warning(f"Final batch insert failed, trying individual inserts: {e}")
+                logger.warning("Final batch insert failed, trying individual inserts: %s", e)
                 for airway_obj in airways:
                     try:
                         db.add(airway_obj)
@@ -189,11 +189,14 @@ def import_airway_data(airway_file_path: str, batch_size: int = 1000) -> None:
                         )
                         total_skipped += 1
         
-        logger.info(f"Import completed: {total_imported} airways imported, {total_skipped} skipped")
+        logger.info(
+            "Import completed: %s airways imported, %s skipped",
+            total_imported, total_skipped,
+        )
         
     except Exception as e:
         db.rollback()
-        logger.error(f"Error importing airway data: {e}", exc_info=True)
+        logger.error("Error importing airway data: %s", e, exc_info=True)
         raise
     finally:
         db.close()
@@ -205,12 +208,12 @@ if __name__ == "__main__":
     airway_file = script_dir / "awy.dat"
     
     if not airway_file.exists():
-        logger.error(f"awy.dat not found in {script_dir}")
+        logger.error("awy.dat not found in %s", script_dir)
         sys.exit(1)
     
     try:
         import_airway_data(str(airway_file))
         logger.info("Airway data import completed successfully")
     except Exception as e:
-        logger.error(f"Import failed: {e}", exc_info=True)
+        logger.error("Import failed: %s", e, exc_info=True)
         sys.exit(1)

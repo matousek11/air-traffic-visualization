@@ -31,6 +31,7 @@ def upgrade() -> None:
             Geography(geometry_type="POINT", srid=4326),
             nullable=True,
         ),
+        sa.Column("uuid", sa.Text, nullable=False),
     )
 
     op.create_index("ix_nav_identificator", "nav", ["identificator"])

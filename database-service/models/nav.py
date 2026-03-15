@@ -19,6 +19,7 @@ class Nav(Base):
         Geography(geometry_type="POINT", srid=4326),
         nullable=True,
     )
+    uuid = Column(Text, nullable=False)
 
     # Indexes
     __table_args__ = (
@@ -30,5 +31,5 @@ class Nav(Base):
     def __repr__(self) -> str:
         return (
             f"<Nav(id={self.id}, identificator={self.identificator}, "
-            f"lat={self.lat}, lon={self.lon})>"
+            f"lat={self.lat}, lon={self.lon}, uuid={self.uuid})>"
         )

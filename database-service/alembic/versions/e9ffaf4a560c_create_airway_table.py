@@ -29,9 +29,6 @@ def upgrade() -> None:
         sa.Column("end_waypoint", sa.Text, nullable=False),
         sa.Column("end_lat", sa.Float, nullable=False),
         sa.Column("end_lon", sa.Float, nullable=False),
-        sa.Column("direction", sa.Integer, nullable=False),  # 1 = bidirectional, 0 = one-way
-        sa.Column("base_altitude", sa.Integer, nullable=False),  # in hundreds of feet
-        sa.Column("top_altitude", sa.Integer, nullable=False),  # in hundreds of feet
         sa.Column("airway_id", sa.Text, nullable=False),
         sa.Column(
             "start_geom",

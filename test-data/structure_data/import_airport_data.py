@@ -65,7 +65,7 @@ def parse_airport_line(line: str) -> tuple | None:
         
         return (code, name, lat, lon)
     except (ValueError, IndexError, StopIteration) as e:
-        logger.warning(f"Failed to parse line: {line[:80]}... Error: {e}")
+        logger.warning("Failed to parse line: %s... Error: %s", line[:80], e)
         return None
 
 
@@ -83,11 +83,11 @@ def import_airport_data(airport_file_path: str, batch_size: int = 1000) -> None:
     
     db: Session = SessionLocal()
     try:
-        logger.info(f"Starting import from {airport_file_path}")
+        logger.info("Starting import from %s", airport_file_path)
         
         # Clear existing data (optional - comment out if you want to keep existing data)
         deleted_count = db.query(Airport).delete()
-        logger.info(f"Deleted {deleted_count} existing airport records")
+        logger.info("Deleted %s existing airport records", deleted_count)
         db.commit()
         
         airports = []
@@ -126,10 +126,10 @@ def import_airport_data(airport_file_path: str, batch_size: int = 1000) -> None:
                         db.add_all(airports)
                         db.commit()
                         total_imported += len(airports)
-                        logger.info(f"Imported batch: {total_imported} airports so far...")
+                        logger.info("Imported batch: %s airports so far...", total_imported)
                     except Exception as e:
                         db.rollback()
-                        logger.warning(f"Batch insert failed, trying individual inserts: {e}")
+                        logger.warning("Batch insert failed, trying individual inserts: %s", e)
                         # Fallback to individual inserts
                         for airport_obj in airports:
                             try:
@@ -152,7 +152,7 @@ def import_airport_data(airport_file_path: str, batch_size: int = 1000) -> None:
                 total_imported += len(airports)
             except Exception as e:
                 db.rollback()
-                logger.warning(f"Final batch insert failed, trying individual inserts: {e}")
+                logger.warning("Final batch insert failed, trying individual inserts: %s", e)
                 for airport_obj in airports:
                     try:
                         db.add(airport_obj)
@@ -165,11 +165,14 @@ def import_airport_data(airport_file_path: str, batch_size: int = 1000) -> None:
                         )
                         total_skipped += 1
         
-        logger.info(f"Import completed: {total_imported} airports imported, {total_skipped} skipped")
+        logger.info(
+            "Import completed: %s airports imported, %s skipped",
+            total_imported, total_skipped,
+        )
         
     except Exception as e:
         db.rollback()
-        logger.error(f"Error importing airport data: {e}", exc_info=True)
+        logger.error("Error importing airport data: %s", e, exc_info=True)
         raise
     finally:
         db.close()
@@ -181,12 +184,12 @@ if __name__ == "__main__":
     airport_file = script_dir / "airports.dat"
     
     if not airport_file.exists():
-        logger.error(f"airports.dat not found in {script_dir}")
+        logger.error("airports.dat not found in %s", script_dir)
         sys.exit(1)
     
     try:
         import_airport_data(str(airport_file))
         logger.info("Airport data import completed successfully")
     except Exception as e:
-        logger.error(f"Import failed: {e}", exc_info=True)
+        logger.error("Import failed: %s", e, exc_info=True)
         sys.exit(1)

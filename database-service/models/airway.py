@@ -18,9 +18,6 @@ class Airway(Base):
     end_waypoint = Column(Text, nullable=False)
     end_lat = Column(Float, nullable=False)
     end_lon = Column(Float, nullable=False)
-    direction = Column(Integer, nullable=False)  # 1 = bidirectional, 0 = one-way
-    base_altitude = Column(Integer, nullable=False)  # in hundreds of feet
-    top_altitude = Column(Integer, nullable=False)  # in hundreds of feet
     airway_id = Column(Text, nullable=False)
     start_geom = Column(
         Geography(geometry_type="POINT", srid=4326),
@@ -53,7 +50,5 @@ class Airway(Base):
     def __repr__(self) -> str:
         return (
             f"<Airway(id={self.id}, airway_id={self.airway_id}, "
-            f"start={self.start_waypoint}, end={self.end_waypoint}, "
-            f"base_alt={self.base_altitude * 100}ft, "
-            f"top_alt={self.top_altitude * 100}ft)>"
+            f"start={self.start_waypoint}, end={self.end_waypoint})>"
         )

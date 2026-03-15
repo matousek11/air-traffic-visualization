@@ -19,6 +19,7 @@ class Airport(Base):
         Geography(geometry_type="POINT", srid=4326),
         nullable=True,
     )
+    uuid = Column(Text, nullable=False)
 
     # Note: GIST index on geom is created via raw SQL in migration
     # and cannot be defined here using standard SQLAlchemy
@@ -26,5 +27,5 @@ class Airport(Base):
     def __repr__(self) -> str:
         return (
             f"<Airport(code={self.code}, "
-            f"name={self.name}, lat={self.lat}, lon={self.lon})>"
+            f"name={self.name}, lat={self.lat}, lon={self.lon}, uuid={self.uuid})>"
         )
