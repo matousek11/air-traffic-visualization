@@ -179,7 +179,7 @@
             "speed": 250
           },
           {
-            "name": "ETATU",
+            "name": "BULEK",
             "flight_level": 100,
             "speed": 250
           }
@@ -192,17 +192,17 @@
         "planePosition": {
           "speed": 230,
           "vertical_speed": 0,
-          "heading": 180,
+          "heading": 240,
           "height": 100,
           "position": [
-            50.893333,
-            13.709167
+            50.794,
+            13.805833333333334
           ]
         },
         "route": [
           {
-            "name": "LISBA",
-            "flight_level": 100,
+            "name": "LALUK",
+            "flight_level": 130,
             "speed": 230
           },
           {
