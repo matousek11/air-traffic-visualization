@@ -10,7 +10,7 @@ from pika.exceptions import AMQPConnectionError
 from pika.spec import Basic, BasicProperties
 
 from common.helpers.logging_service import LoggingService
-from objects.env import Env
+from common.helpers.env import Env
 
 logger = LoggingService.get_logger(__name__)
 

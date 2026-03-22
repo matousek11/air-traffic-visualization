@@ -1,5 +1,6 @@
 from common.helpers.boundary_checker import BoundaryChecker
 from common.helpers.logging_service import LoggingService
+from common.helpers.physics_calculator import PhysicsCalculator
 from common.helpers.mtcd_toolkit import FlightLike, MtcdToolkit, Conflict
 from common.models.flight_position_adapter import FlightPositionAdapter
 from common.helpers.flight_plan_engine import FlightPlanEngine
@@ -196,7 +197,8 @@ class MtcdPipeline:
         # Typical separation minima: 5 NM horizontal, 1000 ft vertical
         return (
                 horizontal_distance < 5.0  # 5 nautical miles
-                and abs(vertical_distance) < (1000 / 6076)  # ~1000 ft in NM
+                and abs(vertical_distance)
+                < PhysicsCalculator.feet_to_nautical_miles(1000)
                 and time_to_closest_approach >= 0
         )
 

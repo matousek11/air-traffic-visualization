@@ -4,7 +4,7 @@ from typing import Dict, Any
 
 from common.helpers.logging_service import LoggingService
 from jobs.check_mtcd_job import CheckMtcdJob
-from objects.env import Env
+from common.helpers.env import Env
 from services.pika_client import PikaClient
 
 logger = LoggingService.get_logger(__name__)

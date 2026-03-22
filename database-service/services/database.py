@@ -1,20 +1,10 @@
 """Database connection and session management."""
 
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker, Session
+from sqlalchemy.orm import sessionmaker
 
-from objects.env import Env
+from common.helpers.postgres_engine import create_postgres_engine_from_env
 
-env = Env()
+engine = create_postgres_engine_from_env()
+DATABASE_URL = str(engine.url)
 
-# Database connection
-DB_USER = env.req("DB_USER")
-DB_PASS = env.req("DB_PASS")
-DB_HOST = env.req("DB_HOST")
-DB_PORT = env.req("DB_PORT")
-DB_NAME = env.req("DB_NAME")
-
-DATABASE_URL = f"postgresql+psycopg2://{DB_USER}:{DB_PASS}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
-
-engine = create_engine(DATABASE_URL, pool_pre_ping=True)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)

@@ -249,7 +249,9 @@ class MtcdToolkit:
         in case that flights are already in conflict and stay in conflict infinity will be returned
         """
         HORIZONTAL_SEP_NM = 5.0 # TODO: get correct separation distance for position of CPA
-        VERTICAL_SEP_NM = (1000.0 * 0.3048) / 1852.0 # TODO: get correct separation distance for position of CPA
+        VERTICAL_SEP_NM = PhysicsCalculator.feet_to_nautical_miles(
+            1000.0,
+        )  # TODO: get correct separation distance for position of CPA
 
         # Horizontal calculation (X,Y - North, East)
         relative_pos_xy = relative_vector_pos[:2]
@@ -329,6 +331,8 @@ class MtcdToolkit:
 
         east = ground_speed * np.sin(heading_rad)  # East component
         north = ground_speed * np.cos(heading_rad)  # North component
-        vertical_speed_in_kts = vertical_speed * 60 / 6076.12 # ft/min to kts
+        vertical_speed_in_kts = PhysicsCalculator.feet_per_minute_to_knots(
+            vertical_speed,
+        )
 
         return np.array([east, north, vertical_speed_in_kts])

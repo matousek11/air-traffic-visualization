@@ -11,6 +11,7 @@ import numpy as np
 from bluesky import stack
 
 from common.helpers.logging_service import LoggingService
+from common.helpers.physics_calculator import PhysicsCalculator
 from .flight_plan_service import FlightPlanService
 from ..models.flight import Flight
 from ..models.flight_detail_response import FlightDetailResponse
@@ -89,15 +90,19 @@ class BlueskyService:
 
         lat = bs.traf.lat[idx]
         lon = bs.traf.lon[idx]
-        flight_level = bs.traf.alt[idx] * 0.03281 # from meters to fl
+        flight_level = (
+            PhysicsCalculator.meters_to_feet(bs.traf.alt[idx]) / 100.0
+        )
         hdg = bs.traf.hdg[idx]
         track_heading = bs.traf.trk[idx]
-        vertical_speed = bs.traf.vs[idx] * 3.28084 * 60  # m/s to ft/min
+        vertical_speed = (
+            PhysicsCalculator.meters_per_second_to_feet_per_minute(bs.traf.vs[idx])
+        )
         gs = bs.traf.gs[idx] * 1.94384449 # from km/h to kts
         flight_plan = self.flight_plan_service.get_flight_plan(flight_id)
         route_string = self.flight_plan_service.get_route_string(flight_id)
         # Get wind on position of plane (getdata returns windnorth, windeast)
-        alt_ft = int(bs.traf.alt[idx] * 3.28084)
+        alt_ft = int(PhysicsCalculator.meters_to_feet(bs.traf.alt[idx]))
         windnorth, windeast = bs.traf.wind.getdata(bs.traf.lat[idx], bs.traf.lon[idx], bs.traf.alt[idx])
         wind_speed = np.sqrt(windnorth ** 2 + windeast ** 2) * 1.944
         # Wind FROM direction: arctan2(-east, -north) for aviation bearing
@@ -125,15 +130,21 @@ class BlueskyService:
             acid = bs.traf.id[i]
             lat = bs.traf.lat[i]
             lon = bs.traf.lon[i]
-            flight_level = bs.traf.alt[i] * 0.03281 # from meters to fl
+            flight_level = (
+                PhysicsCalculator.meters_to_feet(bs.traf.alt[i]) / 100.0
+            )
             hdg = bs.traf.hdg[i]
             track_heading = bs.traf.trk[i]
-            vertical_speed = bs.traf.vs[i] * 3.28084 * 60 # m/s to ft/min
+            vertical_speed = (
+                PhysicsCalculator.meters_per_second_to_feet_per_minute(
+                    bs.traf.vs[i],
+                )
+            )
             gs = bs.traf.gs[i] * 1.94384449 # from km/h to kts
             flight_plan = self.flight_plan_service.get_flight_plan(acid)
             route_string = self.flight_plan_service.get_route_string(acid)
             # Get wind on position of plane (getdata returns windnorth, windeast)
-            alt_ft = int(bs.traf.alt[i] * 3.28084)
+            alt_ft = int(PhysicsCalculator.meters_to_feet(bs.traf.alt[i]))
             windnorth, windeast = bs.traf.wind.getdata(bs.traf.lat[i], bs.traf.lon[i], bs.traf.alt[i])
             wind_speed = np.sqrt(windnorth ** 2 + windeast ** 2) * 1.944
             # Wind FROM direction: arctan2(-east, -north) for aviation bearing

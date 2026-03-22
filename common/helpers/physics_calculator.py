@@ -17,6 +17,94 @@ class PhysicsCalculator:
 
     EARTH_RADIUS_KM = 6371.0 # Radius of Earth in kilometers (haversine method)
 
+    # International foot (exactly 0.3048 m)
+    FEET_TO_METERS = 0.3048
+
+    # International nautical mile (exactly 1852 m)
+    METERS_PER_NAUTICAL_MILE = 1852.0
+
+    @staticmethod
+    def feet_to_meters(value: float) -> float:
+        """Convert a length in feet to meters.
+
+        Args:
+            value: Distance or altitude difference in feet.
+
+        Returns:
+            Equivalent length in meters.
+        """
+        return value * PhysicsCalculator.FEET_TO_METERS
+
+    @staticmethod
+    def meters_to_feet(value: float) -> float:
+        """Convert a length in meters to feet.
+
+        Args:
+            value: Distance or altitude in meters.
+
+        Returns:
+            Equivalent in feet.
+        """
+        return value / PhysicsCalculator.FEET_TO_METERS
+
+    @staticmethod
+    def feet_to_nautical_miles(value: float) -> float:
+        """Convert a distance in feet to nautical miles.
+
+        Args:
+            value: Distance in feet.
+
+        Returns:
+            Equivalent distance in international nautical miles.
+        """
+        return PhysicsCalculator.feet_to_meters(value) / (
+            PhysicsCalculator.METERS_PER_NAUTICAL_MILE
+        )
+
+    @staticmethod
+    def feet_per_nautical_mile() -> float:
+        """Return the length of one international nautical mile in feet.
+
+        Returns:
+            One NM expressed in feet (~6076.12).
+        """
+        return PhysicsCalculator.meters_to_feet(
+            PhysicsCalculator.METERS_PER_NAUTICAL_MILE,
+        )
+
+    @staticmethod
+    def meters_per_second_to_feet_per_minute(value: float) -> float:
+        """Convert vertical speed from meters per second to feet per minute.
+
+        Args:
+            value: Vertical speed in m/s.
+
+        Returns:
+            Vertical speed in ft/min.
+        """
+        return PhysicsCalculator.meters_to_feet(value) * 60.0
+
+    @staticmethod
+    def feet_per_minute_to_knots(value: float) -> float:
+        """Convert vertical speed from feet per minute to knots (NM/h).
+
+        Args:
+            value: Vertical speed in ft/min.
+
+        Returns:
+            Equivalent speed in knots.
+        """
+        return (value * 60.0) / PhysicsCalculator.feet_per_nautical_mile()
+
+    @staticmethod
+    def kilometers_per_flight_level() -> float:
+        """Return altitude change per one flight level in kilometers (100 ft).
+
+        Returns:
+            Kilometers corresponding to 100 ft.
+        """
+        return PhysicsCalculator.feet_to_meters(100) / 1000.0
+
     @staticmethod
     def get_distance_between_positions(
             lat1: float,
@@ -83,9 +171,10 @@ class PhysicsCalculator:
             previous_position.lon
         )
 
+        # normalize
         hours_time_diff = (
                 (current_position.timestamp - previous_position.timestamp)
-                / 60 * 60
+                / (60 * 60)
         )
         speed_in_kmh = distance_in_km / hours_time_diff
         return abs(speed_in_kmh)
@@ -101,17 +190,15 @@ class PhysicsCalculator:
 
         :return: vertical speed in meters per minute (positive climb, negative descent)
         """
-        # 240 -> 24 000 feet
-        # 1 feet -> 0.3048m
-        feet_to_meters = 0.3048
         minute_diff = (
                 (current_position.timestamp - previous_position.timestamp) / 60
         )
-        vertical_difference = (
-                current_position.flight_level - previous_position.flight_level
+        vertical_delta_feet = (
+                (current_position.flight_level - previous_position.flight_level)
+                * 100
         )
-        vertical_difference *= 100 * feet_to_meters
-        return vertical_difference / minute_diff
+        vertical_delta_feet = PhysicsCalculator.feet_to_meters(vertical_delta_feet)
+        return vertical_delta_feet / minute_diff
 
     @staticmethod
     def latlon_to_ecef(
@@ -123,7 +210,10 @@ class PhysicsCalculator:
         lat_rad = math.radians(lat)
         lon_rad = math.radians(lon)
 
-        radius = PhysicsCalculator.EARTH_RADIUS_KM + flight_level * 0.03048
+        radius = (
+            PhysicsCalculator.EARTH_RADIUS_KM
+            + flight_level * PhysicsCalculator.kilometers_per_flight_level()
+        )
 
         x = radius * math.cos(lat_rad) * math.cos(lon_rad)
         y = radius * math.cos(lat_rad) * math.sin(lon_rad)
@@ -221,7 +311,7 @@ class PhysicsCalculator:
 
         lat = ref_lat + math.degrees(dlat)
         lon = ref_lon + math.degrees(dlon)
-        fl = ref_fl + up / 0.03048
+        fl = ref_fl + up / PhysicsCalculator.kilometers_per_flight_level()
 
         return Position3D(lat, lon, fl)
 

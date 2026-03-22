@@ -7,7 +7,7 @@ from typing import Dict, List, Tuple
 
 from common.helpers.logging_service import LoggingService
 from jobs.check_mtcd_job import CheckMtcdJob
-from objects.env import Env
+from common.helpers.env import Env
 from services.mtcd_event_check import MTCDEventCheck
 from services.pika_client import PikaClient
 

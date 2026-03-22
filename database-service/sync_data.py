@@ -6,17 +6,17 @@ import sys
 
 from common.helpers.logging_service import LoggingService
 from services.data_synchronizer import DataSynchronizer
-from objects.env import Env
+from common.helpers.env import Env
 
 logging = LoggingService.get_logger(__name__)
 
 env = Env()
 
-# Get configuration from environment
+# Get configuration from the environment
 api_base_url = env.str("FLIGHT_SIMULATION_API_URL", "http://localhost:8001")
 sync_interval = env.int("SYNC_INTERVAL", 5)
 
-# Create and start synchronizer
+# Create and start a synchronizer
 synchronizer = DataSynchronizer(
     api_base_url=api_base_url,
     sync_interval=float(sync_interval),

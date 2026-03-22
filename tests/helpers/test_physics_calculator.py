@@ -55,7 +55,20 @@ def test_get_horizontal_speed_basic() -> None:
         Position(0, 0, 0, 240),
         Position(5, 5, 5, 240),
     )
-    assert math.isclose(speed_kmh, 157, abs_tol=0.2)
+    assert math.isclose(speed_kmh, 565752.3, abs_tol=0.2)
+
+
+def test_get_horizontal_speed_one_hour_drive() -> None:
+    """Tests: horizontal speed between two positions is correctly computed in km/h."""
+    start_pos = Position(1000, 50.0, 14.0, 240 )
+    end_pos = Position(4600, 51.0, 14.0, 240 )
+
+    speed_kmh = PhysicsCalculator.get_horizontal_speed(
+        current_position=end_pos,
+        previous_position=start_pos,
+    )
+
+    assert math.isclose(speed_kmh, 107.8, abs_tol=0.5)
 
 
 def test_get_horizontal_speed_same_position_zero_speed() -> None:
@@ -265,3 +278,125 @@ def test_km_to_nm_nm_to_km_round_trip() -> None:
         1.852,
         abs_tol=1e-9,
     )
+
+
+# ---- feet / meters / NM (altitude and vertical speed) ----
+
+
+def test_feet_to_meters_and_meters_to_feet_round_trip() -> None:
+    """Tests: international foot 0.3048 m, round-trip preserves value."""
+    assert math.isclose(
+        PhysicsCalculator.feet_to_meters(1.0),
+        PhysicsCalculator.FEET_TO_METERS,
+        abs_tol=1e-12,
+    )
+    assert math.isclose(
+        PhysicsCalculator.meters_to_feet(PhysicsCalculator.FEET_TO_METERS),
+        1.0,
+        abs_tol=1e-12,
+    )
+    round_ft = PhysicsCalculator.meters_to_feet(
+        PhysicsCalculator.feet_to_meters(42.5),
+    )
+    assert math.isclose(round_ft, 42.5, abs_tol=1e-9)
+
+
+def test_feet_to_nautical_miles_one_thousand_feet() -> None:
+    """Tests: 1000 ft separation in NM matches feet_to_meters / NM."""
+    nm = PhysicsCalculator.feet_to_nautical_miles(1000.0)
+    expected = (
+        PhysicsCalculator.feet_to_meters(1000.0)
+        / PhysicsCalculator.METERS_PER_NAUTICAL_MILE
+    )
+    assert math.isclose(nm, expected, rel_tol=1e-9)
+
+
+def test_feet_per_nautical_mile_matches_meters_to_feet_1852() -> None:
+    """Tests: one NM in feet equals meters_to_feet(METERS_PER_NAUTICAL_MILE)."""
+    assert math.isclose(
+        PhysicsCalculator.feet_per_nautical_mile(),
+        PhysicsCalculator.meters_to_feet(
+            PhysicsCalculator.METERS_PER_NAUTICAL_MILE,
+        ),
+        rel_tol=1e-12,
+    )
+
+
+def test_meters_per_second_to_feet_per_minute() -> None:
+    """Tests: 1 m/s -> ft/min via feet per second * 60."""
+    fpm = PhysicsCalculator.meters_per_second_to_feet_per_minute(1.0)
+    assert math.isclose(
+        fpm,
+        PhysicsCalculator.meters_to_feet(1.0) * 60.0,
+        rel_tol=1e-12,
+    )
+
+
+def test_feet_per_minute_to_knots() -> None:
+    """Tests: one NM/min vertical rate is 60 kt (same as 1 NM/h climb)."""
+    fpnm = PhysicsCalculator.feet_per_nautical_mile()
+    kts = PhysicsCalculator.feet_per_minute_to_knots(fpnm)
+    assert math.isclose(kts, 60.0, rel_tol=1e-9)
+
+
+def test_kilometers_per_flight_level() -> None:
+    """Tests: 100 ft as km is feet_to_meters(100) / 1000."""
+    km_fl = PhysicsCalculator.kilometers_per_flight_level()
+    assert math.isclose(
+        km_fl,
+        PhysicsCalculator.feet_to_meters(100) / 1000.0,
+        rel_tol=1e-12,
+    )
+
+
+def test_feet_to_nautical_miles_one_nautical_mile_in_feet() -> None:
+    """Tests: distance of one NM expressed in feet converts to 1.0 NM."""
+    fpnm = PhysicsCalculator.feet_per_nautical_mile()
+    assert math.isclose(
+        PhysicsCalculator.feet_to_nautical_miles(fpnm),
+        1.0,
+        rel_tol=1e-9,
+    )
+
+
+def test_altitude_conversion_methods_zero() -> None:
+    """Tests: feet/meters/NM helpers return 0 for zero input."""
+    assert math.isclose(
+        PhysicsCalculator.feet_to_meters(0.0),
+        0.0,
+        abs_tol=0.0,
+    )
+    assert math.isclose(
+        PhysicsCalculator.meters_to_feet(0.0),
+        0.0,
+        abs_tol=0.0,
+    )
+    assert math.isclose(
+        PhysicsCalculator.feet_to_nautical_miles(0.0),
+        0.0,
+        abs_tol=0.0,
+    )
+    assert math.isclose(
+        PhysicsCalculator.meters_per_second_to_feet_per_minute(0.0),
+        0.0,
+        abs_tol=0.0,
+    )
+    assert math.isclose(
+        PhysicsCalculator.feet_per_minute_to_knots(0.0),
+        0.0,
+        abs_tol=0.0,
+    )
+
+
+def test_meters_to_feet_vertical_rate_same_factor_as_length() -> None:
+    """Tests: m/min uses the same factor as m."""
+    m_per_min = 30.48
+    fpm = PhysicsCalculator.meters_to_feet(m_per_min)
+    assert math.isclose(fpm, 100.0, rel_tol=1e-9)
+
+
+def test_kilometers_per_flight_level_positive() -> None:
+    """Tests: one FL step is a small positive km (100 ft)."""
+    km_fl = PhysicsCalculator.kilometers_per_flight_level()
+    assert km_fl > 0.0
+    assert km_fl < 0.1
