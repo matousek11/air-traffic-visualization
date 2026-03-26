@@ -2,7 +2,6 @@
 Houses api for control of BlueSky simulation
 """
 
-import logging
 import types
 from typing import List
 
@@ -10,6 +9,7 @@ import httpx
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
+from common.helpers.logging_service import LoggingService
 from common.helpers.mtcd_pipeline import MtcdPipeline
 from common.models.flight_position_adapter import FlightPositionAdapter
 from .services.bluesky_service import BlueskyService
@@ -23,7 +23,7 @@ from .models.conflicts_response import (
 from .models.wind import Wind
 from .models.speed_action import SpeedAction
 
-logger = logging.getLogger(__name__)
+logger = LoggingService.get_logger(__name__)
 
 bluesky_service = BlueskyService()
 bluesky_service.start_simulation()
@@ -39,7 +39,7 @@ app = FastAPI()
 # Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In production, replace with specific origins
+    allow_origins=["*"],  # In production, replace it with specific origins
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

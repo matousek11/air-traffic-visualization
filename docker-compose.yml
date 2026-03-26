@@ -84,6 +84,21 @@ services:
     volumes:
       - ./database-service:/app/database-service
       - ./common:/app/common 
+  dataset-stream:
+    build:
+      context: .
+      dockerfile: docker/dataset_stream/Dockerfile
+    container_name: mtcd-dataset-stream
+    restart: unless-stopped
+    depends_on:
+      - database-api
+    ports:
+      - "8010:8010"
+    environment:
+      DATABASE_SERVICE_URL: http://database-api:8002
+    volumes:
+      - ./dataset_stream:/app/dataset_stream
+      - ./common:/app/common
 
 volumes:
   timescale_data:
