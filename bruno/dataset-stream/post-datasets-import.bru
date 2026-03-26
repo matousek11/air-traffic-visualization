@@ -1,0 +1,15 @@
+meta {
+  name: /datasets/{dataset_name}/import
+  type: http
+  seq: 2
+}
+
+post {
+  url: http://localhost:8010/datasets/flight_positions_10/import
+  body: none
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}

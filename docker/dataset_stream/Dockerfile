@@ -2,12 +2,13 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
+COPY dataset_stream/requirements.txt ./dataset_stream/
+RUN pip install --no-cache-dir -r dataset_stream/requirements.txt
+
 # Copy shared package and dataset_stream service.
 COPY common ./common
-COPY dataset_stream/requirements.txt ./dataset_stream/
 COPY dataset_stream ./dataset_stream
-
-RUN pip install --no-cache-dir -r dataset_stream/requirements.txt
+COPY dataset_stream/.env ./.env
 
 ENV PYTHONPATH=/app
 
