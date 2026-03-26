@@ -11,3 +11,7 @@ sample-nm-b2b-data
 venv
 
 uml
+
+/test-data/
+
+/dataset_stream/.env
