@@ -1,0 +1,15 @@
+meta {
+  name: /replay/status
+  type: http
+  seq: 5
+}
+
+get {
+  url: http://localhost:8010/replay/status
+  body: none
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}

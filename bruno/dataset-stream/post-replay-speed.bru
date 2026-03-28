@@ -1,0 +1,21 @@
+meta {
+  name: /replay/speed
+  type: http
+  seq: 6
+}
+
+post {
+  url: http://localhost:8010/replay/speed
+  body: json
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "increase": true
+  }
+}

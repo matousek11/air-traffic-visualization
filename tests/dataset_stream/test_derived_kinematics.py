@@ -5,7 +5,6 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 
 from common.helpers.physics_calculator import PhysicsCalculator
-from dataset_stream.import_script.csv_io import DenormalizedFlightPositionRow
 from dataset_stream.import_script.derived_kinematics import (
     _denormalized_row_from_mapping,
 )
@@ -13,6 +12,7 @@ from dataset_stream.import_script.derived_kinematics import derive_kinematic_dat
 from dataset_stream.import_script.derived_kinematics import (
     fill_in_missing_values,
 )
+from dataset_stream.services.replay_types import DatasetSnapshotRow
 
 
 def _row(
@@ -22,7 +22,7 @@ def _row(
     lat: float | None,
     lon: float | None,
     flight_level: int | None,
-) -> DenormalizedFlightPositionRow:
+) -> DatasetSnapshotRow:
     """Build a minimal flight position row for tests.
 
     Args:
@@ -33,9 +33,9 @@ def _row(
         flight_level: Flight level or None.
 
     Returns:
-        DenormalizedFlightPositionRow with fixed flight_id and route.
+        DatasetSnapshotRow with fixed flight_id and route.
     """
-    return DenormalizedFlightPositionRow(
+    return DatasetSnapshotRow(
         sample_time=sample_time,
         time_over=time_over,
         flight_id="F1",

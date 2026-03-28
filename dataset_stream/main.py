@@ -2,12 +2,12 @@
 Place for dataset streaming API
 """
 
-import os
 from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi import HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+import httpx
 
 from common.helpers.postgres_engine import create_postgres_engine_from_env
 from common.helpers.logging_service import LoggingService
@@ -16,15 +16,24 @@ from dataset_stream.helpers.datasets import get_importable_datasets
 from dataset_stream.helpers.datasets import resolve_dataset_filename
 from dataset_stream.import_script.importer import ImportResult
 from dataset_stream.import_script.importer import import_flight_positions_csv
+from dataset_stream.request_models import ReplayStartRequest
+from dataset_stream.request_models import ReplaySpeedRequest
 from dataset_stream.response_models import DatasetImportResponse
+from dataset_stream.response_models import ReplayStatusResponse
+from dataset_stream.services.replay_controller import ReplayController
 
 logger = LoggingService.get_logger(__name__)
 
-DATABASE_SERVICE_URL = os.getenv("DATABASE_SERVICE_URL")
 DATASETS_DIR = Path(__file__).resolve().parent / "datasets"
 DEFAULT_TABLE_NAME = "dataset_flight_positions"
 
 app = FastAPI()
+
+_engine = create_postgres_engine_from_env()
+replay_controller = ReplayController(
+    engine=_engine,
+    dataset_table_name=DEFAULT_TABLE_NAME,
+)
 
 # Add CORS middleware
 app.add_middleware(
@@ -115,3 +124,67 @@ def import_selected_dataset(
         rows_skipped=result.rows_skipped,
     )
 
+
+@app.post(
+    "/replay/start",
+    response_model=ReplayStatusResponse,
+    tags=["replay"],
+)
+def start_replay(request: ReplayStartRequest) -> ReplayStatusResponse:
+    """Start replay worker."""
+    try:
+        return replay_controller.start(
+            speed=request.speed,
+            tick_interval_seconds=request.tick_interval_seconds,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.post(
+    "/replay/stop",
+    response_model=ReplayStatusResponse,
+    tags=["replay"],
+)
+def stop_replay() -> ReplayStatusResponse:
+    """Stop replay worker."""
+    return replay_controller.stop()
+
+
+@app.get(
+    "/replay/status",
+    response_model=ReplayStatusResponse,
+    tags=["replay"],
+)
+def get_replay_status() -> ReplayStatusResponse:
+    """Get replay controller status."""
+    return replay_controller.status()
+
+
+@app.post(
+    "/replay/speed",
+    response_model=ReplayStatusResponse,
+    tags=["replay"],
+)
+def set_replay_speed(request: ReplaySpeedRequest) -> ReplayStatusResponse:
+    """Increase or decrease replay speed by 1 unit (minimum 1)."""
+    try:
+        return replay_controller.adjust_speed(increase=request.increase)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.post(
+    "/replay/reset",
+    response_model=ReplayStatusResponse,
+    tags=["replay"],
+)
+def reset_replay() -> ReplayStatusResponse:
+    """Stop replay and reset the app DB state."""
+    try:
+        return replay_controller.reset()
+    except httpx.HTTPError as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to reset database: {str(exc)}",
+        ) from exc

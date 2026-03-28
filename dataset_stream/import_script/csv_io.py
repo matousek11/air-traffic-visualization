@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 import csv
-from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 
 from common.helpers.logging_service import LoggingService
+from dataset_stream.services.replay_types import DatasetSnapshotRow
 
 logger = LoggingService.get_logger(__name__)
 
@@ -23,25 +23,6 @@ EXPECTED_HEADER = (
     "flight_level",
     "route_string",
 )
-
-
-@dataclass(frozen=True)
-class DenormalizedFlightPositionRow:
-    """One denormalized flight position row ready for database insert."""
-    sample_time: datetime
-    time_over: datetime
-    flight_id: str
-    aircraft_type: str | None
-    origin: str | None
-    destination: str | None
-    lat: float | None
-    lon: float | None
-    flight_level: int | None
-    route_string: str | None
-    ground_speed_kt: int | None = None
-    track_heading: int | None = None
-    vertical_rate_fpm: int | None = None
-    heading: int | None = None
 
 
 def parse_iso_datetime_utc(value: str) -> datetime:
@@ -126,7 +107,7 @@ def _parse_optional_int(raw: str | None) -> int | None:
 
 def load_filtered_rows(
     csv_path: Path,
-) -> tuple[list[DenormalizedFlightPositionRow], int]:
+) -> tuple[list[DatasetSnapshotRow], int]:
     """Read CSV rows and keep rows with the required time and flight identity.
 
     Args:
@@ -139,7 +120,7 @@ def load_filtered_rows(
         ValueError: When the header row does not match the expected columns.
         FileNotFoundError: When csv_path does not exist.
     """
-    rows: list[DenormalizedFlightPositionRow] = []
+    rows: list[DatasetSnapshotRow] = []
     skipped = 0
 
     with csv_path.open(encoding="utf-8", newline="") as handle:
@@ -184,7 +165,7 @@ def load_filtered_rows(
             dest = _blank_to_none(raw.get("destination", "") or "")
             route = _blank_to_none(raw.get("route_string", "") or "")
             rows.append(
-                DenormalizedFlightPositionRow(
+                DatasetSnapshotRow(
                     sample_time=sample_time,
                     time_over=time_over,
                     flight_id=flight_id_val,

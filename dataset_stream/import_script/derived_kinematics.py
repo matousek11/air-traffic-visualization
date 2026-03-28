@@ -13,7 +13,7 @@ from sqlalchemy.engine import Connection
 
 from common.helpers.physics_calculator import PhysicsCalculator
 from common.models.position import Position
-from dataset_stream.import_script.csv_io import DenormalizedFlightPositionRow
+from dataset_stream.services.replay_types import DatasetSnapshotRow
 
 
 @dataclass(frozen=True)
@@ -23,7 +23,7 @@ class FlightUpdates:
     position_params: list[dict[str, object]]
 
 
-def _is_flight_position_complete(row: DenormalizedFlightPositionRow) -> bool:
+def _is_flight_position_complete(row: DatasetSnapshotRow) -> bool:
     """Return True when lat, lon, and flight_level are all set.
 
     Args:
@@ -39,7 +39,7 @@ def _is_flight_position_complete(row: DenormalizedFlightPositionRow) -> bool:
     )
 
 
-def _get_time_over_timestamp(row: DenormalizedFlightPositionRow) -> int:
+def _get_time_over_timestamp(row: DatasetSnapshotRow) -> int:
     """Return Unix seconds from time_over.
 
     Args:
@@ -52,8 +52,8 @@ def _get_time_over_timestamp(row: DenormalizedFlightPositionRow) -> int:
 
 
 def derive_kinematic_data(
-    previous: DenormalizedFlightPositionRow,
-    current: DenormalizedFlightPositionRow,
+    previous: DatasetSnapshotRow,
+    current: DatasetSnapshotRow,
     calculator: PhysicsCalculator,
 ) -> tuple[int, int, int, int] | None:
     """Compute derived kinematics for one segment (previous -> current).
@@ -112,8 +112,8 @@ def derive_kinematic_data(
 
 def _denormalized_row_from_mapping(
     row: Mapping[str, object],
-) -> DenormalizedFlightPositionRow:
-    """Build a DenormalizedFlightPositionRow from a DB result mapping.
+) -> DatasetSnapshotRow:
+    """Build a DatasetSnapshotRow from a DB result mapping.
 
     Args:
         row: Row mapping with keys matching hypertable column names.
@@ -132,7 +132,7 @@ def _denormalized_row_from_mapping(
     ):
         msg = "sample_time and time_over must be datetime"
         raise TypeError(msg)
-    return DenormalizedFlightPositionRow(
+    return DatasetSnapshotRow(
         sample_time=sample_time,
         time_over=time_over,
         flight_id=str(row["flight_id"]),
@@ -147,8 +147,8 @@ def _denormalized_row_from_mapping(
 
 
 def _locf_position_with_flags(
-    rows: list[DenormalizedFlightPositionRow],
-) -> tuple[list[DenormalizedFlightPositionRow], list[bool]]:
+    rows: list[DatasetSnapshotRow],
+) -> tuple[list[DatasetSnapshotRow], list[bool]]:
     """Forward-fill missing lat/lon/fl from the last complete sample per flight.
 
     Args:
@@ -158,7 +158,7 @@ def _locf_position_with_flags(
         Tuple of (rows after LOCF transformation, position_imputed flags per row).
     """
     last_complete: tuple[float, float, int] | None = None
-    out: list[DenormalizedFlightPositionRow] = []
+    out: list[DatasetSnapshotRow] = []
     flags: list[bool] = []
     for row in rows:
         lat = row.lat
@@ -184,7 +184,7 @@ def _locf_position_with_flags(
 
 
 def fill_in_missing_values(
-    sorted_flight_rows: list[DenormalizedFlightPositionRow],
+    sorted_flight_rows: list[DatasetSnapshotRow],
     calculator: PhysicsCalculator,
 ) -> FlightUpdates:
     """Applies LOCF to lat/lon/fl, then computes kinematics.

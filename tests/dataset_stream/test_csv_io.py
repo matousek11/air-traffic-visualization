@@ -13,10 +13,10 @@ from dataset_stream import ImportResult
 from dataset_stream import import_flight_positions_csv
 from dataset_stream.import_script.csv_io import EXPECTED_HEADER
 from dataset_stream.import_script.csv_io import (
-    DenormalizedFlightPositionRow,
     load_filtered_rows,
     parse_iso_datetime_utc,
 )
+from dataset_stream.services.replay_types import DatasetSnapshotRow
 
 
 def test_parse_iso_datetime_utc_z_suffix() -> None:
@@ -56,7 +56,7 @@ def test_load_filtered_rows_keeps_complete_rows() -> None:
         assert skipped == 0
         assert len(rows) == 1
         row = rows[0]
-        assert isinstance(row, DenormalizedFlightPositionRow)
+        assert isinstance(row, DatasetSnapshotRow)
         assert row.flight_id == "PO00102964"
         assert row.flight_level == 68
         assert row.lat == pytest.approx(49.305)

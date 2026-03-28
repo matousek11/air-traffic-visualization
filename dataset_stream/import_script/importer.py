@@ -10,10 +10,10 @@ from sqlalchemy.engine import Connection
 from sqlalchemy.engine import Engine
 
 from common.helpers.logging_service import LoggingService
-from dataset_stream.import_script.csv_io import DenormalizedFlightPositionRow
 from dataset_stream.import_script.csv_io import load_filtered_rows
 from dataset_stream.import_script.derived_kinematics import apply_pairwise_kinematics
 from dataset_stream.import_script.schema import drop_and_create_hypertable
+from dataset_stream.services.replay_types import DatasetSnapshotRow
 
 logger = LoggingService.get_logger(__name__)
 
@@ -28,7 +28,7 @@ class ImportResult:
 def _insert_rows(
     conn: Connection,
     table_name: str,
-    rows: list[DenormalizedFlightPositionRow],
+    rows: list[DatasetSnapshotRow],
 ) -> None:
     """Insert all rows using parameterized statements.
 
