@@ -1,5 +1,7 @@
+from collections import deque
 from typing import List
 
+from common.helpers.logging_service import LoggingService
 from models import Airway, FlightPosition, Fix, Nav
 from common.models.flight_parser.enriched_flight_plan import EnrichedFlightPlan
 from common.models.flight_parser.enriched_route_segment import EnrichedRouteSegment
@@ -9,6 +11,8 @@ from common.models.flight_parser.waypoint import Waypoint
 from repositories.airway_repository import AirwayRepository
 from repositories.fix_repository import FixRepository
 from repositories.nav_repository import NavRepository
+
+logger = LoggingService.get_logger(__name__)
 
 
 class RouteEnricher:
@@ -25,6 +29,7 @@ class RouteEnricher:
         """Enrich parsed flight plan with position data and airway waypoints"""
         self.current_true_air_speed: int | None = None
         self.current_flight_level: int | None = None
+        logger.info(logger.info(f"Enriching flight plan: {parsed_flight_plan}"))
 
         if parsed_flight_plan.config is not None:
             self.current_true_air_speed = parsed_flight_plan.config.true_air_speed
@@ -60,7 +65,16 @@ class RouteEnricher:
                 int(self.current_true_air_speed),
                 int(self.current_flight_level)
             )
-            enriched_segments += airway_enriched_segments
+            if len(airway_enriched_segments) != 0:
+                enriched_segments += airway_enriched_segments
+
+        # Get rid of duplicate segments
+        deduped: list[EnrichedRouteSegment] = []
+        for segment in enriched_segments:
+            if deduped and deduped[-1].ident == segment.ident:
+                continue
+            deduped.append(segment)
+        enriched_segments = deduped
 
         return EnrichedFlightPlan(
             config=parsed_flight_plan.config,
@@ -116,7 +130,7 @@ class RouteEnricher:
             flight_level: int
     ) -> list[EnrichedRouteSegment]:
         """
-        Get list of waypoints forming a path through an airway from start to end waypoint.
+        Get a list of waypoints forming a path through an airway from start to end waypoint.
 
         Args:
             airway_id: ICAO airway identifier
@@ -137,7 +151,8 @@ class RouteEnricher:
         ]
 
         if len(start_segments) == 0:
-            raise ValueError(f"No segments found for {start_waypoint} in airway {airway_id}")
+            # Ignore missing segments as there could be waypoints that are out of europe scope
+            return []
 
         if len(start_segments) == 1:
             waypoints = self._get_points_to_end_waypoint(start_segments[0], airway_segments, start_waypoint, end_waypoint)
@@ -150,7 +165,8 @@ class RouteEnricher:
                     flight_level
                 )
 
-            raise ValueError(f"Route {airway_id} doesn't exists")
+            logger.error(f"Route {airway_id} doesn't exists, skipping further route enrichment")
+            return []
 
         if len(start_segments) == 2:
             waypoints = self._get_points_to_end_waypoint(start_segments[0], airway_segments, start_waypoint, end_waypoint)
@@ -165,7 +181,8 @@ class RouteEnricher:
 
             waypoints = self._get_points_to_end_waypoint(start_segments[1], airway_segments, start_waypoint, end_waypoint)
             if waypoints is None:
-                raise ValueError(f"Route {airway_id} doesn't exists")
+                logger.error(f"Route {airway_id} doesn't exists, skipping further route enrichment")
+                return []
 
             return self._convert_identifiers_into_enriched_segments(
                 waypoints,
@@ -200,6 +217,102 @@ class RouteEnricher:
 
         return enriched_segments
 
+    @staticmethod
+    def _build_airway_adjacency(segments: list[Airway]) -> dict[str, list[str]]:
+        """Build an undirected adjacency map from airway segment endpoints.
+
+        Args:
+            segments: All ``Airway`` rows for one airway identifier.
+
+        Returns:
+            Mapping from each waypoint id to sorted adjacent waypoint ids.
+        """
+        adj: dict[str, set[str]] = {}
+        for seg in segments:
+            a = seg.start_waypoint
+            b = seg.end_waypoint
+            adj.setdefault(a, set()).add(b)
+            adj.setdefault(b, set()).add(a)
+        return {w: sorted(neighbors) for w, neighbors in adj.items()}
+
+    @staticmethod
+    def _reconstruct_path(
+            parent: dict[str, str],
+            start_waypoint: str,
+            end_waypoint: str,
+    ) -> list[str]:
+        """Rebuild the start-to-end path using BFS parent links.
+
+        Args:
+            parent: For each visited node (except ``start_waypoint``), the
+                previous node on the BFS tree.
+            start_waypoint: Path origin.
+            end_waypoint: Path destination.
+
+        Returns:
+            Waypoint identifiers from ``start_waypoint`` to ``end_waypoint``.
+        """
+        reversed_path: list[str] = []
+        current_waypoint: str | None = end_waypoint
+        while current_waypoint is not None and current_waypoint != start_waypoint:
+            reversed_path.append(current_waypoint)
+            current_waypoint = parent.get(current_waypoint)
+        reversed_path.append(start_waypoint)
+        return list(reversed(reversed_path))
+
+
+    def _find_path_with_first_edge(
+            self,
+            start_segment: Airway,
+            segments: list[Airway],
+            start_waypoint: str,
+            end_waypoint: str,
+    ) -> list[str] | None:
+        """The shortest path to end waypoint.
+
+        Args:
+            start_segment: Segment that fixes the initial direction from
+                ``start_waypoint``.
+            segments: All segments of the airway (graph edges).
+            start_waypoint: Route start fix id.
+            end_waypoint: Route end fix id.
+
+        Returns:
+            List of waypoint ids along the path, or ``None`` if no such path
+            exists.
+        """
+        first_next = start_segment.get_next_point(start_waypoint)
+        if first_next == end_waypoint:
+            return [start_waypoint, end_waypoint]
+
+        adj = self._build_airway_adjacency(segments)
+        if end_waypoint not in adj:
+            return None
+
+        parent: dict[str, str] = {first_next: start_waypoint}
+        visited: set[str] = {start_waypoint, first_next}
+        queue: deque[str] = deque([first_next])
+
+        while queue:
+            node = queue.popleft()
+            if node == end_waypoint:
+                return self._reconstruct_path(
+                    parent,
+                    start_waypoint,
+                    end_waypoint,
+                )
+            for neighbor in adj.get(node, []):
+                if neighbor in visited:
+                    continue
+                if neighbor == start_waypoint:
+                    continue
+                visited.add(neighbor)
+                parent[neighbor] = node
+                queue.append(neighbor)
+
+        return None
+
+
     def _get_points_to_end_waypoint(
             self,
             start_segment: Airway,
@@ -207,37 +320,25 @@ class RouteEnricher:
             start_waypoint: str,
             end_waypoint: str
     ) -> List[str] | None:
+        """Find waypoint ids from start to end along one airway branch of the graph.
+
+
+        Args:
+            start_segment: Segment of airway from which to start traversal.
+            segments: All segments of airway.
+            start_waypoint: Identifier of start waypoint.
+            end_waypoint: Identifier of end waypoint.
+
+        Returns:
+            List of identifiers from ``start_waypoint`` to ``end_waypoint``,
+            or ``None`` if no path exists with the required first edge.
         """
-        Traverse airway segments from start_waypoint until end_waypoint is reached.
-
-        :param start_segment: segment of airway from which to start traversal
-        :param segments: all segments of airway
-        :param start_waypoint: identifier of start waypoint
-        :param end_waypoint: identifier of end waypoint
-        :return: list of identifiers of waypoints traversed from start_waypoint to end_waypoint
-        """
-        waypoints: list[str] = [start_waypoint]
-        searched_waypoint = start_segment.get_next_point(start_waypoint)
-
-        while searched_waypoint != end_waypoint:
-            # segments that contain searched waypoint but doesn't connect to already traversed waypoint
-            found_segments = [
-                seg for seg in segments
-                if seg.start_waypoint == searched_waypoint and seg.end_waypoint != waypoints[-1]
-                   or seg.end_waypoint == searched_waypoint and seg.start_waypoint != waypoints[-1]
-            ]
-
-            if len(found_segments) == 0:
-                raise ValueError(f"Waypoint {searched_waypoint} not found in airway {start_segment.airway_id}")
-
-            if len(found_segments) > 1:
-                raise ValueError(f"More results than expected for airway with point {searched_waypoint}")
-
-            waypoints.append(searched_waypoint)
-            searched_waypoint = found_segments[0].get_next_point(searched_waypoint)
-
-        waypoints.append(searched_waypoint)
-        return waypoints
+        return self._find_path_with_first_edge(
+            start_segment,
+            segments,
+            start_waypoint,
+            end_waypoint,
+        )
 
 
 
