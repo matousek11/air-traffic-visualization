@@ -2,6 +2,7 @@
 
 from geoalchemy2 import Geography
 from sqlalchemy import Column, Float, ForeignKey, Index, Integer, Text, TIMESTAMP
+from sqlalchemy.dialects.postgresql import JSONB
 
 from . import Base
 
@@ -27,6 +28,13 @@ class FlightPosition(Base):
     vertical_rate_fpm = Column(Integer, nullable=True)
     sector_id = Column(Text, nullable=True)
     route = Column(Text, nullable=True)
+    target_flight_level = Column(Integer, nullable=True)
+    wind_heading = Column(Float, nullable=True)
+    wind_speed = Column(Float, nullable=True)
+    wind_lat = Column(Float, nullable=True)
+    wind_lon = Column(Float, nullable=True)
+    wind_altitude = Column(Integer, nullable=True)
+    flight_plan_json = Column(JSONB, nullable=True)
     geom = Column(
         Geography(geometry_type="POINT", srid=4326),
         nullable=False,

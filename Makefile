@@ -12,6 +12,6 @@ test-coverage:
 check: lint test test-coverage
 
 manual-dataset-import:
-	PYTHONPATH=. python3 -m dataset_stream.import_script
+	PYTHONPATH=.:database-service python3 -m dataset_stream.import_script
 
 
