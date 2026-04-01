@@ -1,6 +1,7 @@
 import copy
 
 import numpy as np
+from lark import UnexpectedCharacters
 
 from common.helpers.logging_service import LoggingService
 from common.types.conflicting_segments_with_time import ConflictingSegmentWithTime
@@ -26,15 +27,29 @@ class FlightPlanEngine:
         self.enricher = RouteEnricher()
         self.physics_calculator = PhysicsCalculator()
 
-    def process_flight_plan(self, flight_id: str, raw_string: str) -> EnrichedFlightPlan:
+    def process_flight_plan(self, flight_id: str, raw_string: str) -> EnrichedFlightPlan | None:
         """
         Handle parsing of string flight plan to EnrichedFlightPlan
 
         :param flight_id: ID of the flight like CSA201
         :param raw_string: String flight plan like "DENUT L610 LAM"
         """
-        # 1. Parse string
-        raw_parsed_flightplan = self.parser.parse(raw_string)
+
+        # Removed modificators
+        raw_string = raw_string.replace(" IFR", "").replace(" VFR", "")
+
+        try:
+            # 1. Parse string
+            raw_parsed_flightplan = self.parser.parse(raw_string)
+        except UnexpectedCharacters as e:
+            logger.error("Unexpected characters in flight plan: %s", e)
+            logger.error("Skipping flight plan parsing and MTCD check")
+            return EnrichedFlightPlan(
+                config=None,
+                segments=[],
+                departure_procedure="",
+                arrival_procedure="",
+            )
 
         # get flight details
         flight_position = FlightPositionRepository.get_latest_position(flight_id)
@@ -190,6 +205,7 @@ class FlightPlanEngine:
             seg_end = segments[end_idx]
 
             # Calculate t for interpolation
+            logger.debug("Segment entry time: %f, exit time: %f", entry_time, exit_time)
             duration = exit_time - entry_time
             if duration <= 0:
                 raise ValueError("Duration of segment should be positive")
@@ -231,6 +247,9 @@ class FlightPlanEngine:
             conf.flight_1_segment_entry_time, conf.flight_1_segment_exit_time
         )
 
+        logger.debug("Index segment: %f, %f", conf.flight_2_segment_start_index, conf.flight_2_segment_end_index)
+        logger.debug("Waypoint segment: %s, %s", segments_2[conf.flight_2_segment_start_index],
+                    segments_2[conf.flight_2_segment_end_index])
         flight_2 = _create_flight_prediction(
             segments_2, conf.flight_2_segment_start_index, conf.flight_2_segment_end_index,
             conf.flight_2_segment_entry_time, conf.flight_2_segment_exit_time

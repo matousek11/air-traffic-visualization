@@ -11,14 +11,18 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from models import Flight, FlightPosition, MTCDEvent
+from models.flight_detail_api import FlightDetailResponse
 from models.mtcd_event_response import MTCDEventResponse
 from services.database import SessionLocal
+from services.flight_snapshot_service import FlightSnapshotService
 
 app = FastAPI(
     title="Database Service API",
     description="API for querying MTCD events and flight data",
     version="1.0.0",
 )
+
+_flight_snapshot_service = FlightSnapshotService()
 
 # Add CORS middleware
 app.add_middleware(
@@ -32,24 +36,83 @@ app.add_middleware(
 
 @app.get("/mtcd-events", response_model=List[MTCDEventResponse])
 def get_mtcd_events(
-    active_only: bool = Query(True, description="If True, return only active events; if False, return all."),
+    active_only: bool = Query(
+        True,
+        description=(
+            "If True, return only active events, if False, return all."
+        ),
+    ),
 ) -> List[MTCDEventResponse] | None:
     """
     Get MTCD events from the database.
-    Returns: By default returns only active events; set active_only=false to return all.
+
+    Returns:
+        By default, returns only active events, set active_only=false to return all.
     """
     db: Session = SessionLocal()
     try:
         query = db.query(MTCDEvent).order_by(MTCDEvent.detected_at.desc())
         if active_only:
-            query = query.filter(MTCDEvent.active == True)  # noqa: E712
+            query = query.filter(MTCDEvent.active.is_(True))
         events = query.all()
 
-        return [MTCDEventResponse.model_validate(event) for event in events]
+        return [
+            MTCDEventResponse.model_validate(event)
+            for event in events
+        ]
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error fetching MTCD events: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error fetching MTCD events: {str(e)}",
+        ) from e
     finally:
         db.close()
+
+
+@app.get(
+    "/flights",
+    response_model=(
+        List[FlightDetailResponse] | FlightDetailResponse
+    ),
+)
+def get_flights(
+    flight_id: str | None = Query(
+        None,
+        description=(
+            "If set, return one flight, otherwise list all active flights."
+        ),
+    ),
+) -> List[FlightDetailResponse] | FlightDetailResponse:
+    """
+    List flights with the latest positions.
+
+    Returns:
+        List of flight details, or one detail when flight_id is provided.
+
+    Raises:
+        HTTPException: 404 if flight_id is set but not found, 500 on errors.
+    """
+    db: Session = SessionLocal()
+    try:
+        if flight_id is None:
+            return _flight_snapshot_service.list_flight_details(db)
+        detail = _flight_snapshot_service.get_flight_detail(db, flight_id)
+        if detail is None:
+            raise HTTPException(
+                status_code=404,
+                detail="Flight not found",
+            )
+        return detail
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error fetching flights: {str(e)}",
+        ) from e
+    finally:
+        db.close()
+
 
 @app.delete("/reset-for-new-simulation", status_code=status.HTTP_204_NO_CONTENT)
 def reset_db_for_new_simulation():
@@ -126,10 +189,11 @@ def get_waypoint(
     except Exception as e:
         raise HTTPException(
             status_code=500,
-            detail=f"Error fetching waypoint: {str(e)}"
-        )
+            detail=f"Error fetching waypoint: {str(e)}",
+        ) from e
     finally:
         db.close()
+
 
 @app.get("/health")
 def health_check():

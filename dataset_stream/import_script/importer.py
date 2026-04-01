@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
+from psycopg2.extras import Json
 from sqlalchemy import text
 from sqlalchemy.engine import Connection
 from sqlalchemy.engine import Engine
@@ -12,6 +13,7 @@ from sqlalchemy.engine import Engine
 from common.helpers.logging_service import LoggingService
 from dataset_stream.import_script.csv_io import load_filtered_rows
 from dataset_stream.import_script.derived_kinematics import apply_pairwise_kinematics
+from dataset_stream.import_script.flight_plan_import import attach_flight_plans_or_skip
 from dataset_stream.import_script.schema import drop_and_create_hypertable
 from dataset_stream.services.replay_types import DatasetSnapshotRow
 
@@ -53,7 +55,8 @@ def _insert_rows(
             ground_speed_kt,
             track_heading,
             vertical_rate_fpm,
-            heading
+            heading,
+            flight_plan_json
         ) VALUES (
             :sample_time,
             :time_over,
@@ -68,7 +71,8 @@ def _insert_rows(
             :ground_speed_kt,
             :track_heading,
             :vertical_rate_fpm,
-            :heading
+            :heading,
+            :flight_plan_json
         )
         """,
     )
@@ -90,6 +94,11 @@ def _insert_rows(
                 "track_heading": row.track_heading,
                 "vertical_rate_fpm": row.vertical_rate_fpm,
                 "heading": row.heading,
+                "flight_plan_json": (
+                    Json(row.flight_plan_json)
+                    if row.flight_plan_json is not None
+                    else None
+                ),
             },
         )
 
@@ -117,6 +126,8 @@ def import_flight_positions_csv(
         FileNotFoundError: When csv_path does not exist.
     """
     rows, skipped = load_filtered_rows(csv_path)
+    rows, plan_skipped = attach_flight_plans_or_skip(rows)
+    skipped += plan_skipped
     with engine.begin() as conn:
         drop_and_create_hypertable(conn, table_name)
         _insert_rows(conn, table_name, rows)

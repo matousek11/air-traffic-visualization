@@ -4,7 +4,6 @@ import time
 import threading
 from datetime import datetime, timezone
 from typing import Optional
-import logging
 
 import httpx
 from geoalchemy2 import WKTElement
@@ -16,6 +15,7 @@ from models import Flight, FlightPosition
 from services.database import SessionLocal
 
 logger = LoggingService.get_logger(__name__)
+
 
 class DataSynchronizer:
     """Synchronizes flight data from flight simulation server to database."""
@@ -47,7 +47,10 @@ class DataSynchronizer:
         self.running = True
         self.thread = threading.Thread(target=self._sync_loop, daemon=True)
         self.thread.start()
-        logger.info("Data synchronizer started (interval: %ss)", self.sync_interval)
+        logger.info(
+            "Data synchronizer started (interval: %ss)",
+            self.sync_interval,
+        )
 
     def stop(self) -> None:
         """Stop the synchronization thread."""
@@ -65,8 +68,12 @@ class DataSynchronizer:
         while self.running:
             try:
                 self._sync_flights()
-            except Exception as e:
-                logger.error("Error during synchronization: %s", e, exc_info=True)
+            except Exception as e:  # pylint: disable=broad-exception-caught
+                logger.error(
+                    "Error during synchronization: %s",
+                    e,
+                    exc_info=True,
+                )
 
             # Sleep for sync_interval seconds
             time.sleep(self.sync_interval)
@@ -85,15 +92,23 @@ class DataSynchronizer:
                 db.commit()
             except Exception as e:
                 db.rollback()
-                logger.error("Error processing flights: %s", e, exc_info=True)
+                logger.error(
+                    "Error processing flights: %s",
+                    e,
+                    exc_info=True,
+                )
                 raise
             finally:
                 db.close()
 
         except httpx.HTTPError as e:
             logger.error("HTTP error fetching flights: %s", e)
-        except Exception as e:
-            logger.error("Unexpected error in _sync_flights: %s", e, exc_info=True)
+        except Exception as e:  # pylint: disable=broad-exception-caught
+            logger.error(
+                "Unexpected error in _sync_flights: %s",
+                e,
+                exc_info=True,
+            )
 
     def _process_flight(self, db: Session, flight_data: dict) -> None:
         """
@@ -106,7 +121,11 @@ class DataSynchronizer:
         flight_id = flight_data["flight_id"]
 
         # Get or create flight
-        flight = db.query(Flight).filter(Flight.flight_id == flight_id).first()
+        flight = (
+            db.query(Flight)
+            .filter(Flight.flight_id == flight_id)
+            .first()
+        )
         if not flight:
             # Create new flight
             flight = Flight(
@@ -123,7 +142,11 @@ class DataSynchronizer:
             except IntegrityError:
                 # Flight might have been created by another thread
                 db.rollback()
-                flight = db.query(Flight).filter(Flight.flight_id == flight_id).first()
+                flight = (
+                    db.query(Flight)
+                    .filter(Flight.flight_id == flight_id)
+                    .first()
+                )
                 if not flight:
                     raise
 
@@ -135,6 +158,28 @@ class DataSynchronizer:
         # Create PostGIS POINT geometry
         geom = WKTElement(f"POINT({lon} {lat})", srid=4326)
 
+        wind_data = flight_data.get("wind")
+        wind_heading = None
+        wind_speed = None
+        wind_lat = None
+        wind_lon = None
+        wind_altitude = None
+        if isinstance(wind_data, dict):
+            wind_heading = wind_data.get("heading")
+            wind_speed = wind_data.get("speed")
+            wind_lat = wind_data.get("lat")
+            wind_lon = wind_data.get("lon")
+            wind_altitude = wind_data.get("altitude")
+
+        plan_raw = flight_data.get("flight_plan")
+        flight_plan_json = None
+        if isinstance(plan_raw, list):
+            flight_plan_json = [
+                str(w["name"])
+                for w in plan_raw
+                if isinstance(w, dict) and w.get("name")
+            ]
+
         flight_position = FlightPosition(
             flight_id=flight_id,
             ts=current_time,
@@ -145,10 +190,21 @@ class DataSynchronizer:
             heading=flight_data.get("heading"),
             track_heading=flight_data.get("track_heading"),
             vertical_rate_fpm=int(flight_data.get("vertical_speed", 0)),
-            sector_id='',  # Not available in API TODO: implement later on
+            sector_id="",  # Not available in API TODO: implement later on
             route=flight_data.get("route_string"),
+            target_flight_level=flight_data.get("target_flight_level"),
+            wind_heading=wind_heading,
+            wind_speed=wind_speed,
+            wind_lat=wind_lat,
+            wind_lon=wind_lon,
+            wind_altitude=wind_altitude,
+            flight_plan_json=flight_plan_json,
             geom=geom,
         )
 
         db.add(flight_position)
-        logger.debug("Added position for flight %s at %s", flight_id, current_time)
+        logger.debug(
+            "Added position for flight %s at %s",
+            flight_id,
+            current_time,
+        )

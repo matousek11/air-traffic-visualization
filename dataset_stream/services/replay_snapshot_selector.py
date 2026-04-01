@@ -11,6 +11,15 @@ from sqlalchemy.engine import Connection
 from dataset_stream.services.replay_types import DatasetSnapshotRow
 
 
+def _parse_flight_plan_json(value: object) -> list[str] | None:
+    """Convert DB JSONB value to waypoint name list or None."""
+    if value is None:
+        return None
+    if isinstance(value, list):
+        return [str(x) for x in value]
+    return None
+
+
 @dataclass(frozen=True)
 class SnapshotSelectionResult:
     """Result of selecting the latest snapshots for all flights."""
@@ -57,6 +66,7 @@ class ReplaySnapshotSelector:
                 lon,
                 flight_level,
                 route_string,
+                flight_plan_json,
                 ground_speed_kt,
                 track_heading,
                 vertical_rate_fpm,
@@ -94,6 +104,7 @@ class ReplaySnapshotSelector:
                     lon=float(m["lon"]),
                     flight_level=m["flight_level"],
                     route_string=m["route_string"],
+                    flight_plan_json=_parse_flight_plan_json(m.get("flight_plan_json")),
                     ground_speed_kt=m["ground_speed_kt"],
                     track_heading=m["track_heading"],
                     vertical_rate_fpm=m["vertical_rate_fpm"],

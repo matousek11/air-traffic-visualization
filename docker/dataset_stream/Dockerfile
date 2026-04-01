@@ -3,14 +3,18 @@ FROM python:3.12-slim
 WORKDIR /app
 
 COPY dataset_stream/requirements.txt ./dataset_stream/
-RUN pip install --no-cache-dir -r dataset_stream/requirements.txt
+COPY database-service/requirements.txt ./database-service/
+RUN pip install --no-cache-dir \
+    -r dataset_stream/requirements.txt \
+    -r database-service/requirements.txt
 
-# Copy shared package and dataset_stream service.
+# common + database-service (services, models, repositories for route expansion)
 COPY common ./common
+COPY database-service ./database-service
 COPY dataset_stream ./dataset_stream
 COPY dataset_stream/.env ./.env
 
-ENV PYTHONPATH=/app
+ENV PYTHONPATH=/app/database-service:/app
 
 EXPOSE 8010
 

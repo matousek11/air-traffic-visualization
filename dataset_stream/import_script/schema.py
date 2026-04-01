@@ -28,6 +28,7 @@ def drop_and_create_hypertable(conn: Connection, table_name: str) -> None:
             track_heading INTEGER,
             vertical_rate_fpm INTEGER,
             heading INTEGER,
+            flight_plan_json JSONB,
             PRIMARY KEY (flight_id, sample_time)
         )
     """

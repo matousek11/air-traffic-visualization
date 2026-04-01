@@ -27,11 +27,11 @@ class MTCDEventCheck:
         self, db: Optional[Session] = None
     ) -> Dict[str, List[str]]:
         """
-        Find all flights that are within time_threshold of closest approach.
+        Find all flights that are within the time_threshold of closest approach.
 
         Returns:
-            Dictionary mapping flight_id to list of flight_ids that are
-            within time threshold of closest approach
+            Dictionary mapping flight_id to a list of flight_ids that are
+            within the time threshold of the closest approach
         """
         if db is None:
             db = SessionLocal()
@@ -48,7 +48,7 @@ class MTCDEventCheck:
         Uses TimescaleDB/PostGIS to efficiently calculate distances and filter conflicts.
         """
         # SQL query that:
-        # 1. Gets latest position for each active flight
+        # 1. Gets the latest position for each active flight
         # 2. Calculates distance between all pairs using PostGIS
         # 3. Calculates time to meeting (distance / (speed1 + speed2))
         # 4. Filters by time threshold
@@ -67,6 +67,7 @@ class MTCDEventCheck:
                     AND fp1.lon IS NOT NULL
                     AND fp1.ground_speed_kt IS NOT NULL
                     AND fp1.ground_speed_kt > 0
+                    AND fp1.flight_level > 60 -- Minimum aircraft height for detection
                 ORDER BY fp1.flight_id, fp1.ts DESC
             )
             SELECT

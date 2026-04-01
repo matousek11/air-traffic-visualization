@@ -43,15 +43,31 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+  redis:
+    image: redis:7-alpine
+    container_name: mtcd-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
   mtcd-worker:
     build:
       context: ./database-service
       dockerfile: Dockerfile.worker
-    container_name: mtcd-worker
+    deploy:
+      mode: replicated
+      replicas: 6
     restart: unless-stopped
     depends_on:
       - timescaledb
       - rabbitmq
+      - redis
     environment:
       DB_USER: atm_user
       DB_PASS: atm_password
@@ -62,6 +78,8 @@ services:
       RABBITMQ_PORT: 5672
       RABBITMQ_USER: atm_user
       RABBITMQ_PASS: atm_password
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
     volumes:
       - ./database-service:/app
       - ./common:/workspace/common
@@ -99,7 +117,9 @@ services:
     volumes:
       - ./dataset_stream:/app/dataset_stream
       - ./common:/app/common
+      - ./database-service:/app/database-service
 
 volumes:
   timescale_data:
   rabbitmq_data:
+  redis_data:

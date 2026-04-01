@@ -48,12 +48,19 @@ class CheckMtcdJob:
             return False
 
         flight_id_1, flight_id_2 = validated_input_data
+        flight_position_1 = FlightPositionRepository.get_latest_position(flight_id_1)
+        flight_position_2 = FlightPositionRepository.get_latest_position(flight_id_2)
+        if flight_position_1 is None or flight_position_2 is None:
+            logger.error("Flight positions not found for %s or %s", flight_id_1, flight_id_2)
+            logger.info("Skipping check for flights %s and %s", flight_id_1, flight_id_2)
+            return True
+
         flight_1_position = FlightPositionAdapter(
-            FlightPositionRepository.get_latest_position(flight_id_1),
+            flight_position_1,
             flight_id_1
         )
         flight_2_position = FlightPositionAdapter(
-            FlightPositionRepository.get_latest_position(flight_id_2),
+            flight_position_2,
             flight_id_2
         )
 

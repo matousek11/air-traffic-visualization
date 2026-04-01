@@ -143,6 +143,7 @@ def _denormalized_row_from_mapping(
         lon=_optional_float(row["lon"]),
         flight_level=_optional_int(row["flight_level"]),
         route_string=_optional_str(row["route_string"]),
+        flight_plan_json=_optional_str_list(row.get("flight_plan_json")),
     )
 
 
@@ -243,7 +244,7 @@ def fill_in_missing_values(
                     derived[3],
                 )
             else:
-                # if derivation of data not possible put in the latest calculated data
+                # if derivation not possible, use latest calculated kinematics
                 if last_derived is None:
                     continue
                 ground_speed = last_derived[0]  # pylint: disable=unsubscriptable-object
@@ -292,7 +293,8 @@ def apply_pairwise_kinematics(conn: Connection, table_name: str) -> None:
             lat,
             lon,
             flight_level,
-            route_string
+            route_string,
+            flight_plan_json
         FROM {table_name}
         WHERE flight_id = :flight_id
         ORDER BY sample_time ASC
@@ -380,3 +382,19 @@ def _optional_int(value: Any) -> int | None:
     if value is None:
         return None
     return int(float(value))
+
+
+def _optional_str_list(value: Any) -> list[str] | None:
+    """Normalize JSONB array to a list of strings.
+
+    Args:
+        value: Database JSONB value or None.
+
+    Returns:
+        List of strings, or None when value is None.
+    """
+    if value is None:
+        return None
+    if isinstance(value, list):
+        return [str(x) for x in value]
+    return None

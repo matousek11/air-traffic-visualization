@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 
+from psycopg2.extras import Json
 from sqlalchemy import text
 from sqlalchemy.engine import Connection
 
@@ -101,6 +102,7 @@ class ReplayDbWriter:
                 vertical_rate_fpm,
                 sector_id,
                 route,
+                flight_plan_json,
                 geom
             ) VALUES (
                 :flight_id,
@@ -114,6 +116,7 @@ class ReplayDbWriter:
                 :vertical_rate_fpm,
                 :sector_id,
                 :route,
+                :flight_plan_json,
                 ST_SetSRID(ST_MakePoint(:lon, :lat), 4326)::geography
             )
             ON CONFLICT (flight_id, ts) DO UPDATE SET
@@ -126,6 +129,7 @@ class ReplayDbWriter:
                 vertical_rate_fpm = EXCLUDED.vertical_rate_fpm,
                 sector_id = EXCLUDED.sector_id,
                 route = EXCLUDED.route,
+                flight_plan_json = EXCLUDED.flight_plan_json,
                 geom = EXCLUDED.geom
             """,
         )
@@ -144,6 +148,11 @@ class ReplayDbWriter:
                     "vertical_rate_fpm": row.vertical_rate_fpm,
                     "sector_id": None,
                     "route": row.route_string,
+                    "flight_plan_json": (
+                        Json(row.flight_plan_json)
+                        if row.flight_plan_json is not None
+                        else None
+                    ),
                 },
             )
 
@@ -157,7 +166,7 @@ class ReplayDbWriter:
             """
             UPDATE flight
             SET active = false
-            WHERE flight_id = ANY(:missing::text[])
+            WHERE flight_id = ANY(CAST(:missing AS text[]))
             """,
         )
         conn.execute(statement, {"missing": list(missing)})
@@ -174,8 +183,8 @@ class ReplayDbWriter:
             SET active = false, last_checked = now()
             WHERE active = true
               AND (
-                flight_id_1 = ANY(:missing::text[])
-                OR flight_id_2 = ANY(:missing::text[])
+                flight_id_1 = ANY(CAST(:missing AS text[]))
+                OR flight_id_2 = ANY(CAST(:missing AS text[]))
               )
             """,
         )

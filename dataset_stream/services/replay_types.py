@@ -23,6 +23,8 @@ class DatasetSnapshotRow:
 
     route_string: str | None
 
+    flight_plan_json: list[str] | None = None
+
     ground_speed_kt: int | None = None
     track_heading: int | None = None
     vertical_rate_fpm: int | None = None

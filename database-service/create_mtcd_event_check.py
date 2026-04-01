@@ -55,12 +55,12 @@ if __name__ == "__main__":
     
     try:
         while True:
-            potential_conflicts = MTCDEventCheck().find_potential_conflicts()
+            potential_conflicts = MTCDEventCheck(0.25).find_potential_conflicts()
             print(json.dumps(potential_conflicts, indent=2))
 
             create_detection_jobs(potential_conflicts)
             
-            time.sleep(5)
+            time.sleep(40)
     except KeyboardInterrupt:
         logger.info("Stopped by user (Ctrl+C)")
         print("\nStopped.")

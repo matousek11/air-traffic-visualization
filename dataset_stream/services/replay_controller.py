@@ -42,7 +42,7 @@ class ReplayController:
         self._default_speed = default_speed
         self._default_tick_interval_seconds = default_tick_interval_seconds
 
-        self._lock = threading.Lock()
+        self._lock = threading.RLock()
         self._thread: threading.Thread | None = None
         # Used for update loop control
         self._stop_event = threading.Event()
