@@ -21,10 +21,12 @@ export class FlightSimulation {
   }
 
   /**
-   * Resets simulation on current data provider
+   * Resets simulation on the current data provider.
+   *
+   * @returns Promise that settles when the backend reset has finished.
    */
-  public resetSimulation(): void {
-    void this.blueSkyDataProvider.resetSimulation();
+  public resetSimulation(): Promise<void> {
+    return this.blueSkyDataProvider.resetSimulation();
   }
 
   /**

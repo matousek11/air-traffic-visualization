@@ -10,6 +10,7 @@ export class AirTrafficVisualization {
   private readonly mapUi: MapUi;
   private readonly scenarioModal: SelectionModal;
   private readonly dataSourceModal: SelectionModal;
+  private readonly simulationScenarios: SimulationScenarios;
   private currentSpeed: number = 1.0;
   private currentDataSourceId: string = 'bluesky';
 
@@ -18,12 +19,12 @@ export class AirTrafficVisualization {
    */
   constructor() {
     this.mapUi = new MapUi();
+    this.simulationScenarios = new SimulationScenarios(scenarios);
 
-    const simulationScenarios = new SimulationScenarios(scenarios);
-    const scenarioOptions = simulationScenarios.getScenarioNames().map(
+    const scenarioOptions = this.simulationScenarios.getScenarioNames().map(
       (key): { id: string; label: string } => ({
         id: key,
-        label: simulationScenarios.getScenario(key).name,
+        label: this.simulationScenarios.getScenario(key).name,
       }),
     );
 
@@ -36,7 +37,7 @@ export class AirTrafficVisualization {
         label: 'Stop Simulation',
         callback: (): void => this.stopSimulation(),
       },
-      onSelect: (scenarioName: string): void => this.startScenario(scenarioName),
+      onSelect: (scenarioName: string): void => this.onScenarioSelected(scenarioName),
     });
 
     this.dataSourceModal = new SelectionModal({
@@ -49,7 +50,7 @@ export class AirTrafficVisualization {
       variant: 'dataSource',
       overlayId: 'data-source-modal-overlay',
       onSelect: (id: string): void => {
-        this.currentDataSourceId = id;
+        void this.onDataSourceSelected(id);
       },
     });
 
@@ -59,16 +60,95 @@ export class AirTrafficVisualization {
   }
 
   /**
-   * Load current simulation speed from server and update display
+   * Handles scenario or dataset selection depending on an active data source.
+   *
+   * @param scenarioName Scenario key from JSON or dataset stem for live mode.
+   */
+  private onScenarioSelected(scenarioName: string): void {
+    switch (this.currentDataSourceId) {
+      case 'live':
+        void this.startLiveDatasetStreaming(scenarioName);
+        break;
+      case 'bluesky':
+        this.startBlueSkyScenario(scenarioName);
+        break;
+    }
+  }
+
+  /**
+   * Switches a data source: providers, scenario list, and polling.
+   *
+   * @param id `bluesky` or `live`.
+   */
+  private async onDataSourceSelected(id: string): Promise<void> {
+    this.currentDataSourceId = id;
+    switch (id) {
+      case 'live':
+        await this.applyLiveDataSource();
+        break;
+      case 'bluesky':
+        await this.applyBlueSkyDataSource();
+        break;
+    }
+  }
+
+  /**
+   * Configures live mode: dataset list in scenario modal, dataset-stream provider active.
+   */
+  private async applyLiveDataSource(): Promise<void> {
+    this.mapUi.useDatasetStreamVisualization();
+    void this.mapUi.getDatasetStreamDataProvider().stopReplay().catch((): void => {
+      /* ignore if not running */
+    });
+    this.mapUi.stopSimulation();
+
+    try {
+      const names = await this.mapUi.getDatasetStreamDataProvider().getImportOptions();
+      const opts = names.map((n): { id: string; label: string } => ({
+        id: n,
+        label: n,
+      }));
+      this.scenarioModal.setOptions(opts, 'Dataset');
+    } catch (error) {
+      console.error('Failed to load dataset list:', error);
+    }
+
+    this.loadSimulationSpeed();
+  }
+
+  /**
+   * Restores BlueSky scenario list and visualization provider.
+   */
+  private async applyBlueSkyDataSource(): Promise<void> {
+    try {
+      await this.mapUi.getDatasetStreamDataProvider().stopReplay();
+    } catch (error) {
+      console.error('Stop replay:', error);
+    }
+
+    this.mapUi.useBlueSkyVisualization();
+    this.mapUi.stopSimulation();
+    const scenarioOptions = this.simulationScenarios.getScenarioNames().map(
+      (key): { id: string; label: string } => ({
+        id: key,
+        label: this.simulationScenarios.getScenario(key).name,
+      }),
+    );
+    this.scenarioModal.setOptions(scenarioOptions, 'Simulation Scenario');
+    this.loadSimulationSpeed();
+  }
+
+  /**
+   * Load current simulation speed from the server and update the display
    */
   private loadSimulationSpeed(): void {
     void this.mapUi.getSimulationSpeed().then((speed: number): void => {
       this.currentSpeed = speed;
-      this.updateSpeedDisplay();
+      this.mapUi.updateSpeedDisplay(this.currentSpeed);
     }).catch((error: Error): void => {
       console.error('Error loading simulation speed:', error);
       // Keep default value if request fails
-      this.updateSpeedDisplay();
+      this.mapUi.updateSpeedDisplay(this.currentSpeed);
     });
   }
 
@@ -132,7 +212,23 @@ export class AirTrafficVisualization {
   /**
    * Opens the scenario selection modal
    */
-  private openScenarioModal(): void {
+  private async openScenarioModal(): Promise<void> {
+    if (this.currentDataSourceId === 'live') {
+      try {
+        const names = await this.mapUi
+          .getDatasetStreamDataProvider()
+          .getImportOptions();
+        this.scenarioModal.setOptions(
+          names.map((n): { id: string; label: string } => ({
+            id: n,
+            label: n,
+          })),
+          'Dataset',
+        );
+      } catch (error) {
+        console.error('Failed to refresh datasets:', error);
+      }
+    }
     this.scenarioModal.show();
   }
 
@@ -141,14 +237,41 @@ export class AirTrafficVisualization {
    *
    * @param scenarioName Name of the scenario to start
    */
-  private startScenario(scenarioName: string): void {
-    this.mapUi.startScenario(scenarioName);
+  private startBlueSkyScenario(scenarioName: string): void {
+    void this.mapUi.startBlueSkyScenario(scenarioName).catch((error: Error) => {
+      console.error('Failed to start scenario:', error);
+    });
+  }
+
+  /**
+   * Starts streaming of selected dataset and prepares the client for incoming data.
+   *
+   * @param datasetName Dataset stem from import-options.
+   */
+  private async startLiveDatasetStreaming(datasetName: string): Promise<void> {
+    const ds = this.mapUi.getDatasetStreamDataProvider();
+    try {
+      await ds.resetSimulation();
+      await ds.importDataset(datasetName);
+      await ds.startReplay(1, 5);
+      this.mapUi.useDatasetStreamVisualization();
+      this.mapUi.uiUpdateLoop();
+      this.loadSimulationSpeed();
+    } catch (error) {
+      console.error('Live dataset pipeline failed:', error);
+      window.alert(
+        `Failed to start dataset: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
   }
 
   /**
    * Stops the current simulation
    */
   private stopSimulation(): void {
+    if (this.currentDataSourceId === 'live') {
+      void this.mapUi.getDatasetStreamDataProvider().stopReplay();
+    }
     this.mapUi.stopSimulation();
   }
 
@@ -158,7 +281,7 @@ export class AirTrafficVisualization {
   private decreaseSpeed(): void {
     void this.mapUi.setSimulationSpeed(false).then((speed: number): void => {
       this.currentSpeed = speed;
-      this.updateSpeedDisplay();
+      this.mapUi.updateSpeedDisplay(this.currentSpeed);
     }).catch((error: Error): void => {
       console.error('Error decreasing speed:', error);
     });
@@ -170,19 +293,9 @@ export class AirTrafficVisualization {
   private increaseSpeed(): void {
     void this.mapUi.setSimulationSpeed(true).then((speed: number): void => {
       this.currentSpeed = speed;
-      this.updateSpeedDisplay();
+      this.mapUi.updateSpeedDisplay(this.currentSpeed);
     }).catch((error: Error): void => {
       console.error('Error increasing speed:', error);
     });
-  }
-
-  /**
-   * Updates the speed display element with current speed
-   */
-  private updateSpeedDisplay(): void {
-    const speedDisplay = document.getElementById('speed-display');
-    if (speedDisplay !== null) {
-      speedDisplay.textContent = `${this.currentSpeed.toFixed(1)}x`;
-    }
   }
 }

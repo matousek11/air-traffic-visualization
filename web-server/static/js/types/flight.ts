@@ -8,6 +8,12 @@ export type NavigationWaypoint = {
   lon?: number;
 };
 
+export type FlightPlanDisplayWaypoint = {
+  name: string;
+  lat?: number;
+  lon?: number;
+};
+
 export type PlanePosition = {
   speed: number;
   vertical_speed: number;
@@ -41,5 +47,5 @@ export type Flight = {
  */
 export type FlightWithWind = Flight & {
   wind: Wind;
-  flightPlan?: NavigationWaypoint[];
+  flightPlan?: FlightPlanDisplayWaypoint[];
 };

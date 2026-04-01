@@ -1,12 +1,12 @@
 import L from 'leaflet';
 import 'leaflet-rotatedmarker';
 import 'leaflet.heat';
-import type { Flight, FlightWithWind, Position } from '../types/flight';
+import type { ApiMTCDEventStructure } from '../types/api-mtcd-event';
+import type { FlightWithWind, Position } from '../types/flight';
+import type { VisualizationDataProvider } from '../types/visualization-data-provider';
+import { BlueSkyDataProvider } from './blue-sky-data-provider';
+import { DatasetStreamDataProvider } from './dataset-stream-data-provider';
 import { FlightSimulation } from './flight-simulation';
-import {
-  BlueSkyDataProvider,
-  type ApiMTCDEventStructure,
-} from './blue-sky-data-provider';
 
 type HeatLayerInstance = L.Layer & {
   setLatLngs: (latlngs: [number, number, number][]) => void;
@@ -15,7 +15,9 @@ type HeatLayerInstance = L.Layer & {
 export class MapUi {
   private map: L.Map;
   private flightSimulation: FlightSimulation;
-  private blueSkyDataProvider: BlueSkyDataProvider;
+  private readonly blueSkyDataProvider: BlueSkyDataProvider;
+  private readonly datasetStreamDataProvider: DatasetStreamDataProvider;
+  private activeVisualizationProvider: VisualizationDataProvider;
   // Store references to markers and polylines for cleanup
   private flightMarkers: Map<string, L.Marker> = new Map();
   private flightPolylines: Map<string, L.Polyline[]> = new Map();
@@ -41,6 +43,8 @@ export class MapUi {
     this.map = L.map('map').setView([49.9, 14.0], 13);
     this.flightSimulation = new FlightSimulation();
     this.blueSkyDataProvider = new BlueSkyDataProvider();
+    this.datasetStreamDataProvider = new DatasetStreamDataProvider();
+    this.activeVisualizationProvider = this.blueSkyDataProvider;
 
     // Dark tile layer (Carto)
     L.tileLayer(
@@ -105,26 +109,31 @@ export class MapUi {
    *
    * @param scenarioName Name of the scenario to load and start
    */
-  public startScenario(scenarioName: string): void {
-    // remove flights from simulation then start new scenario
-    this.flightSimulation.resetSimulation();
+  public async startBlueSkyScenario(scenarioName: string): Promise<void> {
+    await this.flightSimulation.resetSimulation();
     this.flightSimulation.loadScenario(scenarioName);
     setTimeout(() => {
-      this.startUpdateLoop();
-      this.startMTCDUpdateLoop();
+      this.uiUpdateLoop();
     }, 5000);
   }
 
   /**
-   * If any flights are already running on the backend (e.g. after page refresh),
+   * Pool flight positions and MTCD events from the database API on an interval.
+   */
+  public uiUpdateLoop(): void {
+    this.startUpdateLoop();
+    this.startMTCDUpdateLoop();
+  }
+
+  /**
+   * If any flights are already running on the backend (e.g., after page refresh),
    * starts the update loops so flights and MTCD are visualized without selecting a scenario.
    */
   public async resumeVisualizationIfFlightsExist(): Promise<void> {
     try {
-      const flights = await this.flightSimulation.updateFlights();
+      const flights = await this.activeVisualizationProvider.updateFlights();
       if (flights.length > 0) {
-        this.startUpdateLoop();
-        this.startMTCDUpdateLoop();
+        this.uiUpdateLoop();
       }
     } catch (error) {
       console.error('Error checking for active flights:', error);
@@ -132,7 +141,7 @@ export class MapUi {
   }
 
   /**
-   * Stops the current simulation and clears all displayed data
+   * Stops the current simulation and clears all displayed data.
    */
   public stopSimulation(): void {
     // Stop update loops
@@ -146,12 +155,13 @@ export class MapUi {
       this.mtcdUpdateIntervalId = null;
     }
 
-    // Reset simulation
-    this.flightSimulation.resetSimulation();
+    void this.flightSimulation.resetSimulation().catch((error: Error) => {
+      console.error('Error resetting BlueSky simulation:', error);
+    });
 
     this.selectedFlightIds.clear();
     this.lastFlights.clear();
-    // Clear heat layer data and reset heatmap state
+    // Clear heat layer data and reset the heatmap state
     if (this.heatLayer) {
       this.heatLayer.setLatLngs([]);
     }
@@ -174,7 +184,8 @@ export class MapUi {
   };
 
   private async updateFlights(): Promise<void> {
-    const flights: FlightWithWind[] = await this.flightSimulation.updateFlights();
+    const flights: FlightWithWind[] =
+      await this.activeVisualizationProvider.updateFlights();
     this.lastFlights = new Map(flights.map((f) => [f.flightID, f]));
     // delete selected flight that doesn't exist
     this.selectedFlightIds.forEach((id) => {
@@ -417,7 +428,7 @@ export class MapUi {
     try {
       // Heatmap uses all events (active + inactive); circles and flightsWithMTCD use only active
       const allMtcdEvents: ApiMTCDEventStructure[] =
-        await this.blueSkyDataProvider.getAllMTCDEvents();
+        await this.activeVisualizationProvider.getAllMTCDEvents();
       const activeMtcdEvents = allMtcdEvents.filter((e) => e.active);
 
       // Update set of flights with active MTCD
@@ -583,7 +594,7 @@ export class MapUi {
       this.clearAllMTCDCircles();
       void this.updateMTCDEvents();
     }
-    // Heat layer stays on map; data is updated in updateMTCDEvents (points when on, [] when off)
+    // Heat layer stays on a map, data is updated in updateMTCDEvents (points when on, [] when off)
   }
 
   /**
@@ -592,7 +603,17 @@ export class MapUi {
    * @returns Promise that resolves to current speed multiplier value
    */
   public async getSimulationSpeed(): Promise<number> {
-    return this.blueSkyDataProvider.getSimulationSpeed();
+    return this.activeVisualizationProvider.getSimulationSpeed();
+  }
+
+  /**
+   * Updates the speed display element with the current speed
+   */
+  public updateSpeedDisplay(currentSpeed: number): void {
+    const speedDisplay = document.getElementById('speed-display');
+    if (speedDisplay !== null) {
+      speedDisplay.textContent = `${currentSpeed.toFixed(1)}x`;
+    }
   }
 
   /**
@@ -602,6 +623,29 @@ export class MapUi {
    * @returns Promise that resolves to current speed multiplier value
    */
   public async setSimulationSpeed(increase: boolean): Promise<number> {
-    return this.blueSkyDataProvider.setSimulationSpeed(increase);
+    return this.activeVisualizationProvider.setSimulationSpeed(increase);
+  }
+
+  /**
+   * Returns dataset stream service for livestreaming data orchestration.
+   *
+   * @returns Shared dataset stream provider instance.
+   */
+  public getDatasetStreamDataProvider(): DatasetStreamDataProvider {
+    return this.datasetStreamDataProvider;
+  }
+
+  /**
+   * Set BlueSky data visualization as an active provider.
+   */
+  public useBlueSkyVisualization(): void {
+    this.activeVisualizationProvider = this.blueSkyDataProvider;
+  }
+
+  /**
+   * Set dataset stream visualization as an active provider.
+   */
+  public useDatasetStreamVisualization(): void {
+    this.activeVisualizationProvider = this.datasetStreamDataProvider;
   }
 }

@@ -17,10 +17,11 @@ export interface SelectionModalConfig {
  * stop button) and dataSource variant (blue/green with active state).
  */
 export class SelectionModal {
-  private readonly config: SelectionModalConfig;
+  private config: SelectionModalConfig;
   private readonly modalOverlay: HTMLDivElement;
   private readonly modalContent: HTMLDivElement;
   private readonly buttonsContainer: HTMLDivElement;
+  private readonly headerElement: HTMLHeadingElement;
   private currentActiveId: string | undefined;
 
   constructor(config: SelectionModalConfig) {
@@ -30,6 +31,7 @@ export class SelectionModal {
     this.modalContent = this.createModalContent();
     this.buttonsContainer = document.createElement('div');
     this.buttonsContainer.className = 'scenario-modal-buttons';
+    this.headerElement = document.createElement('h2');
     this.buildModal();
   }
 
@@ -52,10 +54,9 @@ export class SelectionModal {
   }
 
   private buildModal(): void {
-    const header = document.createElement('h2');
-    header.className = 'scenario-modal-header';
-    header.textContent = this.config.title;
-    this.modalContent.appendChild(header);
+    this.headerElement.className = 'scenario-modal-header';
+    this.headerElement.textContent = this.config.title;
+    this.modalContent.appendChild(this.headerElement);
 
     this.config.options.forEach((option): void => {
       const button = this.createOptionButton(option.id, option.label);
@@ -143,5 +144,42 @@ export class SelectionModal {
    */
   public hide(): void {
     this.modalOverlay.classList.remove('visible');
+  }
+
+  /**
+   * Rebuilds scenario/data-source option buttons.
+   *
+   * @param options New option ids and labels.
+   * @param title Optional modal title.
+   */
+  public setOptions(
+    options: { id: string; label: string }[],
+    title?: string,
+  ): void {
+    this.config.options = options;
+    if (title !== undefined) {
+      this.config.title = title;
+      this.headerElement.textContent = title;
+    }
+
+    while (this.buttonsContainer.firstChild) {
+      this.buttonsContainer.removeChild(this.buttonsContainer.firstChild);
+    }
+
+    // Rebuild option buttons
+    options.forEach((option): void => {
+      this.buttonsContainer.appendChild(
+        this.createOptionButton(option.id, option.label),
+      );
+    });
+    
+    if (this.config.extraButton) {
+      this.buttonsContainer.appendChild(
+        this.createExtraButton(
+          this.config.extraButton.label,
+          this.config.extraButton.callback,
+        ),
+      );
+    }
   }
 }
