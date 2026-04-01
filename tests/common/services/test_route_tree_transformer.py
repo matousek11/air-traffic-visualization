@@ -11,8 +11,10 @@ from common.models.flight_parser.departure_procedure import DepartureProcedure
 from common.models.flight_parser.initial_route_config import InitialRouteConfig
 from common.models.flight_parser.parsed_flight_plan import ParsedFlightPlan
 from common.models.flight_parser.raw_route_segment import RawRouteSegment
-from common.helpers.route_parser import RouteParser
-from common.helpers.route_tree_transformer import RouteTreeTransformer
+from common.helpers.route_parser import RouteParser, preprocess_route_string
+from common.helpers.route_tree_transformer import (
+    RouteTreeTransformer,
+)
 
 
 # ---- change ----
@@ -241,3 +243,49 @@ def test_parser_parse_invalid_raises() -> None:
     parser = RouteParser()
     with pytest.raises(lark.UnexpectedInput):
         parser.parse("???")
+
+
+def test_parser_upper_ats_route_un133_is_airway_not_waypoint() -> None:
+    """Upper ATS designators (ICAO Item 15) lex as airway, not waypoint."""
+    parser = RouteParser()
+    result = parser.parse("ANTAR UN133 PEREN DCT ABCD")
+    assert len(result.segments) == 3
+    assert result.segments[0].ident == "ANTAR"
+    assert result.segments[0].via_airway == "UN133"
+    assert result.segments[1].ident == "PEREN"
+    assert result.segments[1].via_airway == "DCT"
+    assert result.segments[2].ident == "ABCD"
+    assert result.segments[2].via_airway is None
+
+
+def test_parser_upper_ats_route_ul863_is_airway() -> None:
+    """UL863-style upper route matches AIRWAY terminal."""
+    parser = RouteParser()
+    result = parser.parse("PEREN UL863 EVIVI")
+    assert result.segments[0].ident == "PEREN"
+    assert result.segments[0].via_airway == "UL863"
+    assert result.segments[1].ident == "EVIVI"
+    assert result.segments[1].via_airway is None
+
+
+def test_preprocess_route_string_strips_leading_dct() -> None:
+    """Leading DCT tokens are removed, so DCT is not the first waypoint."""
+    assert preprocess_route_string("DCT VLM") == "VLM"
+    assert preprocess_route_string("  DCT  DCT  AMULU  ") == "AMULU"
+
+
+def test_preprocess_route_string_strips_dct_after_initial_speed() -> None:
+    """DCT after Nxxxx speed/level at the start is not parsed as a waypoint."""
+    assert preprocess_route_string("N0447F380 DCT AMULU") == "N0447F380 AMULU"
+    assert preprocess_route_string("N0447F380 DCT DCT AMULU") == "N0447F380 AMULU"
+
+
+def test_parser_dct_not_first_waypoint_after_speed_config() -> None:
+    """Full route: first leg after config is AMULU, not DCT."""
+    parser = RouteParser()
+    result = parser.parse(
+        "N0447F380 DCT AMULU DCT KETEL DCT ROGMI T108 LANDU LANDU2A",
+    )
+    assert result.config is not None
+    assert result.segments[0].ident == "AMULU"
+    assert result.segments[0].via_airway == "DCT"

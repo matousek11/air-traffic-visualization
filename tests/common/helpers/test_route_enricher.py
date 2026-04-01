@@ -319,20 +319,18 @@ def test_get_point_raises_when_neither_fix_nor_nav_found(
 
 # ---- get_airway_waypoints ----
 
-@patch("common.helpers.route_enricher.FixRepository")
 @patch("common.helpers.route_enricher.AirwayRepository")
-def test_get_airway_waypoints_no_segments_for_start_raises(
+def test_get_airway_waypoints_no_segments_for_start_returns_empty(
     mock_airway_repo: MagicMock,
-    mock_fix_repo: MagicMock,
 ) -> None:
-    """When no segment contains start_waypoint, ValueError is raised."""
+    """When no segment contains start_waypoint, an empty list is returned."""
     mock_airway_repo.get_airway_segments.return_value = [
         _make_airway_mock("X", "Y"),
     ]
 
     enricher = RouteEnricher()
-    with pytest.raises(ValueError, match="No segments found for A in airway L610"):
-        enricher.get_airway_waypoints("L610", "A", "B", 450, 350)
+    result = enricher.get_airway_waypoints("L610", "A", "B", 450, 350)
+    assert result == []
 
 @patch("common.helpers.route_enricher.FixRepository")
 @patch("common.helpers.route_enricher.AirwayRepository")
@@ -361,17 +359,17 @@ def test_get_airway_waypoints_one_segment_direct_path(
 
 @patch("common.helpers.route_enricher.FixRepository")
 @patch("common.helpers.route_enricher.AirwayRepository")
-def test_get_airway_waypoints_one_segment_no_route_to_end_raises(
+def test_get_airway_waypoints_one_segment_no_route_to_end_returns_empty(
     mock_airway_repo: MagicMock,
     mock_fix_repo: MagicMock,
 ) -> None:
-    """Single start segment that does not lead to end_waypoint raises (waypoint not found)."""
+    """When end is unreachable on the airway, get_airway_waypoints returns []."""
     seg = _make_airway_mock("A", "B", 50.0, 14.0)
     mock_airway_repo.get_airway_segments.return_value = [seg]
 
     enricher = RouteEnricher()
-    with pytest.raises(ValueError, match="Waypoint B not found in airway L610"):
-        enricher.get_airway_waypoints("L610", "A", "Z", 450, 350)
+    result = enricher.get_airway_waypoints("L610", "A", "Z", 450, 350)
+    assert result == []
 
     mock_fix_repo.get_closest_fix.assert_not_called()
 
@@ -420,17 +418,17 @@ def test_get_airway_waypoints_two_segments_second_path_used(
     assert result[1].ident == "B"
 
 @patch("common.helpers.route_enricher.AirwayRepository")
-def test_get_airway_waypoints_two_segments_neither_reaches_end_raises(
+def test_get_airway_waypoints_two_segments_neither_reaches_end_returns_empty(
     mock_airway_repo: MagicMock,
 ) -> None:
-    """Two segments but neither path leads to end_waypoint raises (waypoint not found)."""
+    """Two start branches, but neither reaches end_waypoint yields an empty list."""
     seg1 = _make_airway_mock("A", "X", 50.0, 14.0)
     seg2 = _make_airway_mock("A", "Y", 50.0, 14.0)
     mock_airway_repo.get_airway_segments.return_value = [seg1, seg2]
 
     enricher = RouteEnricher()
-    with pytest.raises(ValueError, match="Waypoint .* not found in airway L610"):
-        enricher.get_airway_waypoints("L610", "A", "Z", 450, 350)
+    result = enricher.get_airway_waypoints("L610", "A", "Z", 450, 350)
+    assert result == []
 
 @patch("common.helpers.route_enricher.AirwayRepository")
 def test_get_airway_waypoints_more_than_two_start_segments_raises(
@@ -468,31 +466,36 @@ def test_get_points_to_end_waypoint_chain_three_segments() -> None:
     result = enricher._get_points_to_end_waypoint(seg_ab, segments, "A", "D")
     assert result == ["A", "B", "C", "D"]
 
-def test_get_points_to_end_waypoint_waypoint_not_found_raises() -> None:
-    """When no next segment from current waypoint exists, ValueError is raised."""
+def test_get_points_to_end_waypoint_no_route_returns_none() -> None:
+    """When the end fix is not reachable on the graph, return None."""
     seg_ab = _make_airway_mock("A", "B")
     seg_bc = _make_airway_mock("B", "C")
     segments = [seg_ab, seg_bc]
     enricher = RouteEnricher()
-    with pytest.raises(
-        ValueError,
-        match="Waypoint C not found in airway L610",
-    ):
-        enricher._get_points_to_end_waypoint(seg_ab, segments, "A", "Z")
+    result = enricher._get_points_to_end_waypoint(seg_ab, segments, "A", "Z")
+    assert result is None
 
 
-def test_get_points_to_end_waypoint_more_than_one_next_segment_raises() -> None:
-    """When two segments leave the same waypoint, ValueError is raised."""
+def test_get_points_to_end_waypoint_junction_bfs_picks_shortest_branch() -> None:
+    """At a junction, BFS finds a shortest path (no 'ambiguous step' error)."""
     seg_ab = _make_airway_mock("A", "B")
     seg_bd = _make_airway_mock("B", "D")
     seg_be = _make_airway_mock("B", "E")
     segments = [seg_ab, seg_bd, seg_be]
     enricher = RouteEnricher()
-    with pytest.raises(
-        ValueError,
-        match="More results than expected for airway with point B",
-    ):
-        enricher._get_points_to_end_waypoint(seg_ab, segments, "A", "D")
+    result = enricher._get_points_to_end_waypoint(seg_ab, segments, "A", "D")
+    assert result == ["A", "B", "D"]
+
+
+def test_get_points_to_end_waypoint_b_sobel_hgd_mempo_chain() -> None:
+    """Degree-1 tip (HGD) on a chain: BFS includes SOBEL–HGD without failing."""
+    seg_bs = _make_airway_mock("B", "SOBEL")
+    seg_sh = _make_airway_mock("SOBEL", "HGD")
+    seg_hm = _make_airway_mock("HGD", "MEMPO")
+    segments = [seg_bs, seg_sh, seg_hm]
+    enricher = RouteEnricher()
+    result = enricher._get_points_to_end_waypoint(seg_bs, segments, "B", "MEMPO")
+    assert result == ["B", "SOBEL", "HGD", "MEMPO"]
 
 # ---- _convert_identifiers_into_enriched_segments ----
 

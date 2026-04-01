@@ -1,3 +1,5 @@
+"""Lark route tree transformer producing ParsedFlightPlan segments."""
+
 import re
 
 from lark import Transformer
@@ -178,8 +180,7 @@ class RouteTreeTransformer(Transformer):
         }
 
     def connection(self, items: list) -> str | None:
-        """Represents airway between two waypoints"""
-        # Rule: connection: "DCT" | AIRWAY_OR_PROC
+        """Airway or DCT between legs."""
         return items[0]
 
     def DCT(self, items) -> str:
