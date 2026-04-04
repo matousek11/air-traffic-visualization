@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Handle start and stop of worker process"""
+"""Handle start and stop of the worker process"""
 import sys, signal
 
 from common.helpers.logging_service import LoggingService

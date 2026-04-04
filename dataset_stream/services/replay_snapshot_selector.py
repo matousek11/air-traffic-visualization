@@ -51,7 +51,7 @@ class ReplaySnapshotSelector:
         Returns:
             Snapshots with selected rows and active flights.
         """
-        window_start = tick_time_utc - timedelta(seconds=window_seconds)
+        window_start = tick_time_utc - timedelta(seconds=window_seconds) - timedelta(seconds=30)
 
         query = text(
             f"""

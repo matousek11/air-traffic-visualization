@@ -59,7 +59,8 @@ class MTCDEventCheck:
                     fp1.lat,
                     fp1.lon,
                     fp1.ground_speed_kt,
-                    fp1.geom
+                    fp1.geom,
+                    fp1.ts
                 FROM flight_position fp1
                 INNER JOIN flight f ON f.flight_id = fp1.flight_id
                 WHERE f.active = true
@@ -87,6 +88,7 @@ class MTCDEventCheck:
             FROM latest_positions lp1
             CROSS JOIN latest_positions lp2
             WHERE lp1.flight_id < lp2.flight_id  -- Avoid duplicates and self-pairs
+                AND ABS(EXTRACT(EPOCH FROM (lp1.ts - lp2.ts))) < 300 -- only flights within 5 minutes apart regarding their newest location data
                 AND (ST_Distance(lp1.geom, lp2.geom) / 1852.0) / 
                     (lp1.ground_speed_kt + lp2.ground_speed_kt) <= :time_threshold
                 AND (ST_Distance(lp1.geom, lp2.geom) / 1852.0) / 

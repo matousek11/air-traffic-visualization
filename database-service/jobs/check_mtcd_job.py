@@ -30,12 +30,18 @@ class CheckMtcdJob:
         return 'mtcd_conflict_check'
 
     @staticmethod
+    def format_multiple_jobs(flights: list[dict[str, Any]]) -> dict[str, Any]:
+        return {
+            "type": "mtcd_conflict_check",
+            "pairs": flights,
+        }
+
+    @staticmethod
     def format_job_data(
             flight_id_1: str,
             flight_id_2: str
     ) -> dict[str, Any]:
         return {
-            "type": "mtcd_conflict_check",
             "flight_id_1": flight_id_1,
             "flight_id_2": flight_id_2,
         }
@@ -47,97 +53,105 @@ class CheckMtcdJob:
             logger.error("Job validation failed, skipping execution of MTCD.")
             return False
 
-        flight_id_1, flight_id_2 = validated_input_data
-        flight_position_1 = FlightPositionRepository.get_latest_position(flight_id_1)
-        flight_position_2 = FlightPositionRepository.get_latest_position(flight_id_2)
-        if flight_position_1 is None or flight_position_2 is None:
-            logger.error("Flight positions not found for %s or %s", flight_id_1, flight_id_2)
-            logger.info("Skipping check for flights %s and %s", flight_id_1, flight_id_2)
-            return True
-
-        flight_1_position = FlightPositionAdapter(
-            flight_position_1,
-            flight_id_1
-        )
-        flight_2_position = FlightPositionAdapter(
-            flight_position_2,
-            flight_id_2
-        )
-
-        predicted_conflicts = self.mtcd_pipeline.run_mtcd(
-            flight_1_position, flight_2_position
-        )
-
-        logger.info("Result: %s", predicted_conflicts)
-        db = SessionLocal()
-        if len(predicted_conflicts) == 0:
-            # Set active MTCDs between selected pair of flights to inactive
-            self._archive_all_conflicts(flight_id_1, flight_id_2, [], db)
-            db.commit()
-            db.close()
-            logger.info(
-                "Flights %s & %s doesn't have conflicts or they were already passed",
-                flight_id_1, flight_id_2,
-            )
-            return True
-
-        # get all currently existing conflicts in db
-        existing_active_conflicts = MtcdEventRepository.get_all_for_pair(flight_id_1, flight_id_2)
-        if existing_active_conflicts is None:
-            raise ValueError("Failed to fetch data MTCD events from database")
-
         physics_calculator = PhysicsCalculator()
-        updated_conflict_ids: list[int] = []
-        for predicted_conflict in predicted_conflicts:
-            existing_conflict_id = None
-            for existing_conflict in existing_active_conflicts:
-                #   update those that are 15 NM miles or closer to previously created conflicts
-                if existing_conflict.is_close_to(physics_calculator, predicted_conflict):
-                    # keep track of updated conflicts
-                    updated_conflict_ids.append(existing_conflict.id)
-                    existing_conflict_id = existing_conflict.id
-                    break
-            # Create or update predicted conflicts
-            is_success = self._create_mtcd_event(
-                flight_id_1, flight_id_2, predicted_conflict, db, existing_conflict_id,
-            )
-            if not is_success:
-                db.rollback()
-                db.close()
-                return False
+        db = SessionLocal()
+        failed_pairs = 0
+        for pair in validated_input_data:
+            flight_id_1 = pair["flight_id_1"]
+            flight_id_2 = pair["flight_id_2"]
+            flight_position_1 = FlightPositionRepository.get_latest_position(flight_id_1)
+            flight_position_2 = FlightPositionRepository.get_latest_position(flight_id_2)
+            if flight_position_1 is None or flight_position_2 is None:
+                logger.error("Flight positions not found for %s or %s", flight_id_1, flight_id_2)
+                logger.info("Skipping check for flights %s and %s", flight_id_1, flight_id_2)
+                continue
 
-        # archive those that were created before, but now weren't detected
-        is_success = self._archive_all_conflicts(
-            flight_id_1, flight_id_2, updated_conflict_ids, db
-        )
+            flight_1_position = FlightPositionAdapter(
+                flight_position_1,
+                flight_id_1
+            )
+            flight_2_position = FlightPositionAdapter(
+                flight_position_2,
+                flight_id_2
+            )
+
+            predicted_conflicts = self.mtcd_pipeline.run_mtcd(
+                flight_1_position, flight_2_position
+            )
+
+            logger.info("Result: %s", predicted_conflicts)
+            if len(predicted_conflicts) == 0:
+                # Set active MTCDs between selected pair of flights to inactive
+                self._archive_all_conflicts(flight_id_1, flight_id_2, [], db)
+                logger.info(
+                    "Flights %s & %s doesn't have conflicts or they were already passed",
+                    flight_id_1, flight_id_2,
+                )
+                continue
+
+            # get all currently existing conflicts in db
+            existing_active_conflicts = MtcdEventRepository.get_all_for_pair(flight_id_1, flight_id_2)
+            if existing_active_conflicts is None:
+                logger.info(
+                    "Failed to fetch data MTCD events from database"
+                )
+                continue
+
+            updated_conflict_ids: list[int] = []
+            for predicted_conflict in predicted_conflicts:
+                existing_conflict_id = None
+                for existing_conflict in existing_active_conflicts:
+                    #   update those that are 15 NM miles or closer to previously created conflicts
+                    if existing_conflict.is_close_to(physics_calculator, predicted_conflict):
+                        # keep track of updated conflicts
+                        updated_conflict_ids.append(existing_conflict.id)
+                        existing_conflict_id = existing_conflict.id
+                        break
+                # Create or update predicted conflicts
+                is_success = self._create_mtcd_event(
+                    flight_id_1, flight_id_2, predicted_conflict, db, existing_conflict_id,
+                )
+                if not is_success:
+                    failed_pairs += 1
+                    continue
+
+            # archive those that were created before, but now weren't detected
+            is_success = self._archive_all_conflicts(
+                flight_id_1, flight_id_2, updated_conflict_ids, db
+            )
+
+            if not is_success:
+                failed_pairs += 1
+                continue
+
+            logger.info(
+                "MTCD detection between %s and %s took %s seconds",
+                flight_id_1, flight_id_2, time.time() - start_timestamp,
+            )
 
         # Commit all changes
-        if is_success:
+        if failed_pairs == 0:
             db.commit()
         else:
             db.rollback()
         db.close()
+        return failed_pairs == 0
 
-        logger.info(
-            "MTCD detection between %s and %s took %s seconds",
-            flight_id_1, flight_id_2, time.time() - start_timestamp,
-        )
-        return is_success
-
-    def _validate_data(self, job_data: Dict[str, Any]) -> tuple[str, str] | None:
+    def _validate_data(self, job_data: Dict[str, Any]) -> list[Any] | None:
         """Checks whether all required data are in job_data"""
-        flight_id_1 = job_data.get("flight_id_1")
-        flight_id_2 = job_data.get("flight_id_2")
+        for pair in job_data.get("pairs", []):
+            flight_id_1 = pair.get("flight_id_1")
+            flight_id_2 = pair.get("flight_id_2")
 
-        if flight_id_1 is None or flight_id_2 is None:
-            logger.error("Missing flight IDs in job data")
-            return None
+            if flight_id_1 is None or flight_id_2 is None:
+                logger.error("Missing flight IDs in job data")
+                return None
 
-        if flight_id_1 == flight_id_2:
-            logger.warning("Same flight ID provided: %s", flight_id_1)
-            return None
+            if flight_id_1 == flight_id_2:
+                logger.warning("Same flight ID provided: %s", flight_id_1)
+                return None
 
-        return flight_id_1, flight_id_2
+        return job_data.get("pairs", [])
 
     def _create_mtcd_event(
             self,

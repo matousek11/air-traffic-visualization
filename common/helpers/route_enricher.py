@@ -104,19 +104,36 @@ class RouteEnricher:
             flight_level=flight_level
         )
 
-    def get_point(self, lat: float, lon: float, identifier: str) -> Fix | Nav:
-        """Finds closest navigation point to given coordinates."""
-        point: Fix | Nav | None = FixRepository.get_closest_fix(
-            lat,
-            lon,
-            identifier
+    def get_point(
+        self,
+        lat: float,
+        lon: float,
+        identifier: str,
+    ) -> Fix | Nav | CachedCoordinates:
+        """Finds the closest navigation point to given coordinates.
+
+        Args:
+            lat: Latitude in degrees.
+            lon: Longitude in degrees.
+            identifier: Fix or nav identifier.
+
+        Returns:
+            ``Fix`` or ``Nav`` row, or ``CachedCoordinates`` when served from
+            repository cache.
+        """
+        point: Fix | Nav | CachedCoordinates | None = (
+            FixRepository.get_closest_fix(
+                lat,
+                lon,
+                identifier,
+            )
         )
 
         if point is None:
             point = NavRepository.get_closest_nav_or_fail(
                 lat,
                 lon,
-                identifier
+                identifier,
             )
 
         return point

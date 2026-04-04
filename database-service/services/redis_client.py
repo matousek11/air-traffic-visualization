@@ -35,9 +35,9 @@ def _build_redis_client() -> redis.Redis:
         Configured redis.Redis instance.
     """
     return redis.Redis(
-        host=_env.str("REDIS_HOST"),
-        port=_env.int("REDIS_PORT"),
-        db=_env.int("REDIS_DB"),
+        host=_env.str("REDIS_HOST", default="localhost"),
+        port=_env.int("REDIS_PORT", default=6379),
+        db=_env.int("REDIS_DB", default=0),
         decode_responses=True,
         socket_connect_timeout=2.0,
         socket_timeout=2.0,
