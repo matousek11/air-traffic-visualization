@@ -1,4 +1,7 @@
+"""Flight plan parsing, enrichment, and MTCD route helpers."""
+
 import copy
+import time
 
 import numpy as np
 from lark import UnexpectedCharacters
@@ -11,23 +14,34 @@ from common.models.flight_position_adapter import FlightPositionAdapter
 from common.models.flight_parser.enriched_flight_plan import EnrichedFlightPlan
 from common.models.flight_parser.enriched_route_segment import EnrichedRouteSegment
 from common.models.flight_parser.waypoint import Waypoint
-from repositories.flight_position_repository import FlightPositionRepository
 from common.helpers.route_enricher import RouteEnricher
 from common.helpers.route_parser import RouteParser
+from repositories.flight_position_repository import FlightPositionRepository
 
 
 logger = LoggingService.get_logger(__name__)
 
+ENRICHED_FLIGHT_PLAN_CACHE_TTL_SECONDS = 30
+
+
 class FlightPlanEngine:
     """
-    Handle parsing of string flight plan to EnrichedFlightPlan
+    Handle parsing of string flight plan to EnrichedFlightPlan.
     """
-    def __init__(self):
+    def __init__(self) -> None:
         self.parser = RouteParser()
         self.enricher = RouteEnricher()
         self.physics_calculator = PhysicsCalculator()
+        self._enriched_plan_cache: dict[
+            str,
+            tuple[EnrichedFlightPlan, float],
+        ] = {}
 
-    def process_flight_plan(self, flight_id: str, raw_string: str) -> EnrichedFlightPlan | None:
+    def process_flight_plan(
+        self,
+        flight_id: str,
+        raw_string: str,
+    ) -> EnrichedFlightPlan | None:
         """
         Handle parsing of string flight plan to EnrichedFlightPlan
 
@@ -38,24 +52,48 @@ class FlightPlanEngine:
         # Removed modificators
         raw_string = raw_string.replace(" IFR", "").replace(" VFR", "")
 
+        now = time.monotonic()
+        cached_entry = self._enriched_plan_cache.get(flight_id)
+        if cached_entry is not None:
+            cached_plan, cached_at = cached_entry
+            ttl = ENRICHED_FLIGHT_PLAN_CACHE_TTL_SECONDS
+            if now - cached_at <= ttl:
+                return copy.deepcopy(cached_plan)
+            del self._enriched_plan_cache[flight_id]
+
         try:
             # 1. Parse string
             raw_parsed_flightplan = self.parser.parse(raw_string)
         except UnexpectedCharacters as e:
             logger.error("Unexpected characters in flight plan: %s", e)
             logger.error("Skipping flight plan parsing and MTCD check")
-            return EnrichedFlightPlan(
+            empty_plan = EnrichedFlightPlan(
                 config=None,
                 segments=[],
                 departure_procedure="",
                 arrival_procedure="",
             )
+            self._enriched_plan_cache[flight_id] = (
+                copy.deepcopy(empty_plan),
+                time.monotonic(),
+            )
+            return empty_plan
 
         # get flight details
-        flight_position = FlightPositionRepository.get_latest_position(flight_id)
+        flight_position = FlightPositionRepository.get_latest_position(
+            flight_id,
+        )
 
         # 2. Enrich flight plan with Data
-        return self.enricher.enrich(flight_position, raw_parsed_flightplan)
+        result = self.enricher.enrich(
+            flight_position,
+            raw_parsed_flightplan,
+        )
+        self._enriched_plan_cache[flight_id] = (
+            copy.deepcopy(result),
+            time.monotonic(),
+        )
+        return copy.deepcopy(result)
 
     def upcoming_waypoint_in_plan(
             self,

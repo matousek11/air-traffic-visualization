@@ -57,7 +57,6 @@ class MtcdPipeline:
 
             return [closest_approach_point]
 
-        # TODO: possible optimization with caching of parsed flight plans as many checks with same flight can happen
         parsed_flightplan_1 = self.flight_plan_engine.process_flight_plan(flight_1.flight_id, flight_1.route)
         parsed_flightplan_2 = self.flight_plan_engine.process_flight_plan(flight_2.flight_id, flight_2.route)
         if len(parsed_flightplan_1.segments) <= 1 or len(parsed_flightplan_2.segments) <= 1:
