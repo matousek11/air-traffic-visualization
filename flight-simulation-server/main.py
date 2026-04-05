@@ -3,6 +3,7 @@ Houses api for control of BlueSky simulation
 """
 
 import types
+from datetime import datetime, timezone
 from typing import List
 
 import httpx
@@ -201,6 +202,7 @@ def _flight_detail_to_position_adapter(
         FlightPositionAdapter instance usable by MtcdPipeline.run_mtcd.
     """
     pos = types.SimpleNamespace(
+        ts=datetime.now(timezone.utc),
         lat=detail.lat,
         lon=detail.lon,
         flight_level=detail.flight_level,

@@ -200,6 +200,176 @@ class FlightPlanEngine:
 
         return PhysicsCalculator.km_to_nm(track_kilometers)
 
+    def _flight_state_along_leg(
+            self,
+            start_lat: float,
+            start_lon: float,
+            start_fl: int,
+            end_lat: float,
+            end_lon: float,
+            end_fl: int,
+            t: float,
+            leg_duration_hours: float,
+    ) -> tuple[float, float, int, int, float]:
+        """Interpolate along a leg, derive heading and vertical speed.
+
+        Args:
+            start_lat: Leg start latitude.
+            start_lon: Leg start longitude.
+            start_fl: Leg start flight level.
+            end_lat: Leg end latitude.
+            end_lon: Leg end longitude.
+            end_fl: Leg end flight level.
+            t: Interpolation parameter in [0, 1].
+            leg_duration_hours: Hours to fly the full leg at the current model.
+
+        Returns:
+            lat, lon, flight level, track heading, vertical speed (ft/min).
+        """
+        lat = start_lat + (end_lat - start_lat) * t
+        lon = start_lon + (end_lon - start_lon) * t
+        current_fl = start_fl + (end_fl - start_fl) * t
+        fl_int = int(round(current_fl))
+        heading = int(self.physics_calculator.calculate_heading(
+            start_lat,
+            start_lon,
+            end_lat,
+            end_lon,
+        ))
+        altitude_diff_ft = (end_fl - start_fl) * 100
+
+        if leg_duration_hours > 1e-12:
+            v_speed = altitude_diff_ft / leg_duration_hours
+        else:
+            v_speed = 0.0
+
+        return lat, lon, fl_int, heading, v_speed
+
+    def extrapolate_along_route_by_time(
+            self,
+            flight: FlightPositionAdapter,
+            plan: EnrichedFlightPlan,
+            upcoming_waypoint_index: int,
+            elapsed_hours: float,
+    ) -> FlightPositionAdapter:
+        """Advance along route polyline by elapsed time at constant ground speed.
+
+        Args:
+            flight: Current aircraft state.
+            plan: Enriched flight plan (not horizon-clipped).
+            upcoming_waypoint_index: First waypoint index ahead of the aircraft.
+            elapsed_hours: Time to advance in hours.
+
+        Returns:
+            New adapter, position, and kinematics updated.
+        """
+        if elapsed_hours <= 0:
+            return flight.copy_with()
+
+        segments = plan.segments[upcoming_waypoint_index:]
+        if not segments:
+            return flight.copy_with()
+
+        remaining_nm = elapsed_hours * flight.speed
+        if remaining_nm <= 0:
+            return flight.copy_with()
+
+        # prepare legs for traversal
+        legs: list[tuple[float, float, int, float, float, int]] = []
+        first = segments[0]
+        legs.append((
+            flight.lat,
+            flight.lon,
+            int(flight.flight_level),
+            first.waypoint.lat,
+            first.waypoint.lon,
+            int(first.flight_level or 0),
+        ))
+
+        for idx in range(1, len(segments)):
+            prev = segments[idx - 1]
+            cur = segments[idx]
+            legs.append((
+                prev.waypoint.lat,
+                prev.waypoint.lon,
+                int(prev.flight_level or 0),
+                cur.waypoint.lat,
+                cur.waypoint.lon,
+                int(cur.flight_level or 0),
+            ))
+
+        # find in which leg flight will be when time is elapsed
+        for leg in legs:
+            (
+                start_lat,
+                start_lon,
+                start_fl,
+                end_lat,
+                end_lon,
+                end_fl,
+            ) = leg
+            leg_km = self.physics_calculator.get_distance_between_positions(
+                start_lat,
+                start_lon,
+                end_lat,
+                end_lon,
+            )
+            leg_nm = PhysicsCalculator.km_to_nm(leg_km)
+            
+            if leg_nm < 1e-12:
+                continue
+
+            if remaining_nm >= leg_nm:
+                remaining_nm -= leg_nm
+                continue
+
+            t = remaining_nm / leg_nm
+            leg_duration_h = leg_nm / flight.speed if flight.speed > 0 else 0.0
+            lat, lon, fl_int, heading, v_spd = self._flight_state_along_leg(
+                start_lat,
+                start_lon,
+                start_fl,
+                end_lat,
+                end_lon,
+                end_fl,
+                t,
+                leg_duration_h,
+            )
+
+            return flight.copy_with(
+                lat=lat,
+                lon=lon,
+                flight_level=fl_int,
+                track_heading=heading,
+                vertical_speed=v_spd,
+            )
+
+        last = segments[-1]
+        last_fl = int(last.flight_level or 0)
+        if len(segments) >= 2:
+            prev_wp = segments[-2].waypoint
+            th = int(self.physics_calculator.calculate_heading(
+                prev_wp.lat,
+                prev_wp.lon,
+                last.waypoint.lat,
+                last.waypoint.lon,
+            ))
+        else:
+            th = int(self.physics_calculator.calculate_heading(
+                flight.lat,
+                flight.lon,
+                last.waypoint.lat,
+                last.waypoint.lon,
+            ))
+            
+        return flight.copy_with(
+            lat=last.waypoint.lat,
+            lon=last.waypoint.lon,
+            flight_level=last_fl,
+            track_heading=th,
+            vertical_speed=0.0,
+        )
+
     def get_flight_prediction_for_segments(
             self,
             segments_1: list[EnrichedRouteSegment],
@@ -250,20 +420,17 @@ class FlightPlanEngine:
             elapsed = segment_entry_time - entry_time
             t = elapsed / duration
 
-            # Interpolate position
-            lat = seg_start.waypoint.lat + (seg_end.waypoint.lat - seg_start.waypoint.lat) * t
-            lon = seg_start.waypoint.lon + (seg_end.waypoint.lon - seg_start.waypoint.lon) * t
-
-            # Interpolate flight level
-            current_fl = seg_start.flight_level + (seg_end.flight_level - seg_start.flight_level) * t
-
-            # Calculate vertical speed
-            altitude_diff_ft = (seg_end.flight_level - seg_start.flight_level) * 100
-            v_speed = altitude_diff_ft / duration
-
-            heading = self.physics_calculator.calculate_heading(
-                seg_start.waypoint.lat, seg_start.waypoint.lon,
-                seg_end.waypoint.lat, seg_end.waypoint.lon
+            start_fl = seg_start.flight_level
+            end_fl = seg_end.flight_level
+            lat, lon, fl, heading, v_speed = self._flight_state_along_leg(
+                seg_start.waypoint.lat,
+                seg_start.waypoint.lon,
+                start_fl,
+                seg_end.waypoint.lat,
+                seg_end.waypoint.lon,
+                end_fl,
+                t,
+                duration,
             )
             logger.info("Checking segment from %s to %s", seg_start.ident, seg_end.ident)
             logger.info("Segment start: lat: %f, lon: %f", seg_start.waypoint.lat, seg_start.waypoint.lon)
@@ -273,7 +440,7 @@ class FlightPlanEngine:
             return FlightLike(
                 lat,
                 lon,
-                int(current_fl),
+                fl,
                 seg_start.true_air_speed, # TODO: should be ground speed and maybe also gs of flight at current time when plane is already in segment
                 int(heading),
                 v_speed

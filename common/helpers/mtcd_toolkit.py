@@ -42,6 +42,35 @@ class MtcdToolkit:
     def __init__(self):
         self.physics_calculator = PhysicsCalculator()
 
+    def position_after_elapsed_hours(
+            self,
+            flight: FlightLike,
+            elapsed_hours: float,
+    ) -> Position3D:
+        """Position after constant-velocity ENU motion from the current state.
+
+        Args:
+            flight: Current state (position, speed, heading, vertical_speed).
+            elapsed_hours: Hours to advance.
+
+        Returns:
+            Geographic position and flight level after elapsed time.
+        """
+        if elapsed_hours <= 0:
+            return Position3D(
+                flight.lat,
+                flight.lon,
+                float(flight.flight_level),
+            )
+
+        origin = np.array([0.0, 0.0, 0.0])
+        speed_vector = self.get_speed_vector(
+            flight.ground_speed,
+            flight.track_heading,
+            flight.vertical_speed,
+        )
+        return self._calculate_pos(flight, origin, speed_vector, elapsed_hours)
+
     def calculate_closest_approach_point(
         self, 
         flight_1: FlightLike,

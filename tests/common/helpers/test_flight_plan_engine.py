@@ -13,6 +13,7 @@ import pytest
 
 from common.helpers.flight_plan_engine import FlightPlanEngine
 from common.helpers.physics_calculator import PhysicsCalculator
+from common.models.flight_position_adapter import FlightPositionAdapter
 from common.models.flight_parser.enriched_flight_plan import EnrichedFlightPlan
 from common.models.flight_parser.enriched_route_segment import EnrichedRouteSegment
 from common.models.flight_parser.waypoint import Waypoint
@@ -430,6 +431,66 @@ def test_get_flight_prediction_for_segments_interpolation_at_entry() -> None:
     f1, _, _ = engine.get_flight_prediction_for_segments(segs, segs, conf)
     assert math.isclose(f1.lat, 50.0, abs_tol=1e-6)
     assert math.isclose(f1.lon, 14.0, abs_tol=1e-6)
+
+# ---- extrapolate_along_route_by_time ----
+
+def test_extrapolate_along_route_by_time_mid_first_leg() -> None:
+    """Half of first leg at constant GS lands at the segment midpoint."""
+    engine = FlightPlanEngine()
+    segs = [
+        _make_segment("A", 52.0, 16.0, flight_level=280),
+        _make_segment("B", 53.0, 17.0, flight_level=290),
+    ]
+    plan = _make_plan(segs)
+    flight = SimpleNamespace(
+        ts=None,
+        lat=50.0,
+        lon=14.0,
+        flight_level=280,
+        ground_speed_kt=60.0,
+        heading=0,
+        track_heading=0,
+        route="R",
+        vertical_rate_fpm=0,
+    )
+    adapter = FlightPositionAdapter(flight, "X")
+    leg_km = PhysicsCalculator.get_distance_between_positions(
+        50.0,
+        14.0,
+        52.0,
+        16.0,
+    )
+    leg_nm = PhysicsCalculator.km_to_nm(leg_km)
+    elapsed_hours = (leg_nm / 2.0) / 60.0
+    out = engine.extrapolate_along_route_by_time(
+        adapter,
+        plan,
+        0,
+        elapsed_hours,
+    )
+    assert math.isclose(out.lat, 51.0, abs_tol=1e-5)
+    assert math.isclose(out.lon, 15.0, abs_tol=1e-5)
+
+def test_extrapolate_along_route_by_time_zero_elapsed_unchanged() -> None:
+    """Non-positive elapsed time returns a copy with the same coordinates."""
+    engine = FlightPlanEngine()
+    segs = [_make_segment("A", 52.0, 16.0)]
+    plan = _make_plan(segs)
+    flight = SimpleNamespace(
+        ts=None,
+        lat=50.0,
+        lon=14.0,
+        flight_level=280,
+        ground_speed_kt=60.0,
+        heading=0,
+        track_heading=0,
+        route="R",
+        vertical_rate_fpm=0,
+    )
+    adapter = FlightPositionAdapter(flight, "X")
+    out = engine.extrapolate_along_route_by_time(adapter, plan, 0, 0.0)
+    assert out.lat == adapter.lat
+    assert out.lon == adapter.lon
 
 # ---- _prepend_current_position ----
 
