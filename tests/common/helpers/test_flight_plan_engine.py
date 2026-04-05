@@ -496,4 +496,74 @@ def test_process_flight_plan_calls_parser_repo_enricher_returns_enriched(
     mock_parser.parse.assert_called_once_with("DENUT L610 LAM")
     mock_repo.get_latest_position.assert_called_once_with("CSA201")
     mock_enricher.enrich.assert_called_once_with(flight_pos, parsed)
-    assert result is expected_plan
+    assert result == expected_plan
+
+
+@patch("common.helpers.flight_plan_engine.time.monotonic", side_effect=[0.0, 0.0, 10.0])
+@patch("common.helpers.flight_plan_engine.FlightPositionRepository")
+@patch("common.helpers.flight_plan_engine.RouteEnricher")
+@patch("common.helpers.flight_plan_engine.RouteParser")
+def test_process_flight_plan_cache_hit_skips_parse_and_enrich(
+    mock_parser_class: MagicMock,
+    mock_enricher_class: MagicMock,
+    mock_repo: MagicMock,
+    _mock_mono: MagicMock,
+) -> None:
+    """Second call within TTL returns cached plan without parse or enrich."""
+    mock_parser = MagicMock()
+    mock_parser_class.return_value = mock_parser
+    mock_enricher = MagicMock()
+    mock_enricher_class.return_value = mock_enricher
+
+    parsed = MagicMock()
+    mock_parser.parse.return_value = parsed
+    flight_pos = MagicMock()
+    mock_repo.get_latest_position.return_value = flight_pos
+
+    expected_plan = _make_plan([_make_segment("X", 50.0, 14.0)])
+    mock_enricher.enrich.return_value = expected_plan
+
+    engine = FlightPlanEngine()
+    engine.parser = mock_parser
+    engine.enricher = mock_enricher
+
+    engine.process_flight_plan("CSA201", "DENUT L610 LAM")
+    engine.process_flight_plan("CSA201", "OTHER ROUTE")
+
+    mock_parser.parse.assert_called_once()
+    mock_enricher.enrich.assert_called_once()
+
+
+@patch("common.helpers.flight_plan_engine.time.monotonic", side_effect=[0.0, 0.0, 31.0, 31.0])
+@patch("common.helpers.flight_plan_engine.FlightPositionRepository")
+@patch("common.helpers.flight_plan_engine.RouteEnricher")
+@patch("common.helpers.flight_plan_engine.RouteParser")
+def test_process_flight_plan_cache_expires_after_ttl(
+    mock_parser_class: MagicMock,
+    mock_enricher_class: MagicMock,
+    mock_repo: MagicMock,
+    _mock_mono: MagicMock,
+) -> None:
+    """After TTL seconds, parse and enrich run again."""
+    mock_parser = MagicMock()
+    mock_parser_class.return_value = mock_parser
+    mock_enricher = MagicMock()
+    mock_enricher_class.return_value = mock_enricher
+
+    parsed = MagicMock()
+    mock_parser.parse.return_value = parsed
+    flight_pos = MagicMock()
+    mock_repo.get_latest_position.return_value = flight_pos
+
+    expected_plan = _make_plan([_make_segment("X", 50.0, 14.0)])
+    mock_enricher.enrich.return_value = expected_plan
+
+    engine = FlightPlanEngine()
+    engine.parser = mock_parser
+    engine.enricher = mock_enricher
+
+    engine.process_flight_plan("CSA201", "DENUT L610 LAM")
+    engine.process_flight_plan("CSA201", "DENUT L610 LAM")
+
+    assert mock_parser.parse.call_count == 2
+    assert mock_enricher.enrich.call_count == 2

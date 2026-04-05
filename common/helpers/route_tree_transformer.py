@@ -105,8 +105,8 @@ class RouteTreeTransformer(Transformer):
         return DepartureProcedure(ident=items[0])
 
     def waypoint_node(self, items) -> dict[str, str | int | None]:
-        """Represents single navigation point node rule"""
-        # Rule waypoint_node: (IDENTIFIER | COORDINATE) [change]
+        """Represents a single navigation point node rule"""
+        # Rule waypoint_node: (IDENTIFIER | COORDINATE | PBD) [change]
 
         # name of point or coordinate (Lark Token)
         ident = str(items[0])

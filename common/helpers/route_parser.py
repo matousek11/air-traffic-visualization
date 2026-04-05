@@ -50,7 +50,7 @@ class RouteParser:
                     # Leg: point and route that goes out of point
                     leg: waypoint_node (connection)?
                     
-                    waypoint_node: (IDENTIFIER | COORDINATE) [change]
+                    waypoint_node: (IDENTIFIER | PBD | COORDINATE) [change]
                     
                     change: "/" SPEED_LEVEL
                     
@@ -63,7 +63,9 @@ class RouteParser:
                     DCT: "DCT"
                     # Exclude reserved DCT (direct), it must only match connection, not waypoint
                     IDENTIFIER: /(?!DCT$)[A-Z0-9]{2,5}/        # BALTU, OKL, 10N
-                    COORDINATE: /\d{2,4}[NS]\d{3,5}[EW]/ # 52N020E, 5230N02030E
+                    PBD.2: /[A-Z]{2,3}\d{3}\d{3}/ # PSA030029
+                    COORDINATE.2: /\d{2}[NS]\d{3}[EW]/ | /\d{4}[NS]\d{5}[EW]/ # 52N020E, 5230N02030E
+          
                     # Upper ATS routes (U + letter + digits), e.g. UN133, UL863; lex before IDENTIFIER
                     AIRWAY_UPPER.2: /U[A-Z][0-9]{1,4}/
                     AIRWAY: /[A-Z][0-9]{1,4}[A-Z]?/    # L610, M872, Z93

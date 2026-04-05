@@ -1,14 +1,19 @@
+"""Route string enrichment using fix/nav/airway data from the database."""
+import math
 from collections import deque
 from typing import List
+import re
 
 from common.helpers.logging_service import LoggingService
-from models import Airway, FlightPosition, Fix, Nav
+from common.helpers.physics_calculator import PhysicsCalculator
 from common.models.flight_parser.enriched_flight_plan import EnrichedFlightPlan
 from common.models.flight_parser.enriched_route_segment import EnrichedRouteSegment
 from common.models.flight_parser.parsed_flight_plan import ParsedFlightPlan
 from common.models.flight_parser.raw_route_segment import RawRouteSegment
 from common.models.flight_parser.waypoint import Waypoint
+from models import Airway, FlightPosition, Fix, Nav
 from repositories.airway_repository import AirwayRepository
+from repositories.coord_lookup_cache import CachedCoordinates
 from repositories.fix_repository import FixRepository
 from repositories.nav_repository import NavRepository
 
@@ -110,7 +115,7 @@ class RouteEnricher:
         lon: float,
         identifier: str,
     ) -> Fix | Nav | CachedCoordinates:
-        """Finds the closest navigation point to given coordinates.
+        """Finds navigation point to given coordinates.
 
         Args:
             lat: Latitude in degrees.
@@ -119,8 +124,16 @@ class RouteEnricher:
 
         Returns:
             ``Fix`` or ``Nav`` row, or ``CachedCoordinates`` when served from
-            repository cache.
+            the repository cache or is ad hoc point.
         """
+        coordinate = self._get_coordinate(identifier)
+        if coordinate is not None:
+            return coordinate
+
+        coordinate = self._get_place_bearing_distance_position(lat, lon, identifier)
+        if coordinate is not None:
+            return coordinate
+
         point: Fix | Nav | CachedCoordinates | None = (
             FixRepository.get_closest_fix(
                 lat,
@@ -128,15 +141,15 @@ class RouteEnricher:
                 identifier,
             )
         )
+        if point is not None:
+            return point
 
-        if point is None:
-            point = NavRepository.get_closest_nav_or_fail(
-                lat,
-                lon,
-                identifier,
-            )
+        return NavRepository.get_closest_nav_or_fail(
+            lat,
+            lon,
+            identifier,
+        )
 
-        return point
 
     def get_airway_waypoints(
             self,
@@ -210,6 +223,78 @@ class RouteEnricher:
             )
 
         raise ValueError(f"More than two segments found for {start_waypoint} in airway {airway_id}")
+
+    def _get_coordinate(self, identifier: str) -> CachedCoordinates | None:
+        """Parse coordinate string and returns its position"""
+        coord_match = re.match(
+            r"^(\d{2})(\d{2})?([NS])(\d{3})(\d{2})?([EW])$",
+            identifier
+        )
+        if not coord_match:
+            return None
+
+        lat_deg, lat_min, lat_hem, lon_deg, lon_min, lon_hem = coord_match.groups()
+
+        dec_lat = float(lat_deg) + (float(lat_min or 0) / 60.0)
+        if lat_hem == 'S':
+            dec_lat *= -1
+
+        dec_lon = float(lon_deg) + (float(lon_min or 0) / 60.0)
+        if lon_hem == 'W':
+            dec_lon *= -1
+
+        return CachedCoordinates(
+            lat=dec_lat,
+            lon=dec_lon,
+        )
+
+    def _get_place_bearing_distance_position(
+            self,
+            lat: float,
+            lon: float,
+            identifier: str,
+    ) -> CachedCoordinates | None:
+        """
+        Get pos from a polar coordinate system where anchor is wpy with identifieer
+
+        :param lat: lat of previous wpy or lat of plane pos
+        :param lon: lon of previous wpy or lon of plane pos
+        :param identifier: identifier of point from which position is calculated
+        :return: Coordinates when possible to calculate, otherwise None
+        """
+        pbd_match = re.match(r"^([A-Z]{2,3})(\d{3})(\d{3})$", identifier)
+        if pbd_match is None:
+            return None
+        ref_id, bearing_deg, dist_nm = pbd_match.groups()
+
+        # find referential point
+        ref_nav = self.get_point(lat, lon, ref_id)
+
+        if ref_nav is None:
+            return None
+
+        # convert nm to km
+        dist_km = PhysicsCalculator.nm_to_km(float(dist_nm))
+        bearing_rad = math.radians(float(bearing_deg))
+
+        # Calculate offsets (North a East)
+        north_offset = dist_km * math.cos(bearing_rad)
+        east_offset = dist_km * math.sin(bearing_rad)
+
+        # get pos from relative pos
+        new_pos = PhysicsCalculator.enu_to_latlon(
+            east=east_offset,
+            north=north_offset,
+            up=0,
+            ref_lat=ref_nav.lat,
+            ref_lon=ref_nav.lon,
+            ref_fl=0
+        )
+
+        return CachedCoordinates(
+            lat=new_pos.lat,
+            lon=new_pos.lon
+        )
 
     def _convert_identifiers_into_enriched_segments(
             self,
