@@ -25,6 +25,7 @@ def _make_flight_adapter(
     lon: float,
     speed: float,
     flight_level: int,
+    vertical_speed: float = 0.0,
 ) -> SimpleNamespace:
     """Build a flight-like object with attributes needed by FlightPlanEngine."""
     return SimpleNamespace(
@@ -32,6 +33,7 @@ def _make_flight_adapter(
         lon=lon,
         speed=speed,
         flight_level=flight_level,
+        vertical_speed=vertical_speed,
     )
 
 def _make_segment(
@@ -57,6 +59,109 @@ def _make_plan(segments: list[EnrichedRouteSegment]) -> EnrichedFlightPlan:
         departure_procedure="",
         arrival_procedure="",
     )
+
+# ---- _project_fl_at_waypoint ----
+
+def test_project_fl_at_waypoint_small_vertical_rate_returns_current_fl() -> None:
+    """Vertical speed below 100 fpm: no projection, keep current flight level."""
+    out = FlightPlanEngine._project_fl_at_waypoint(
+        current_fl=310,
+        vertical_speed_ft_min=99.0,
+        planned_fl=350,
+        time_to_waypoint_h=0.5,
+    )
+    assert out == 310
+
+    out_neg = FlightPlanEngine._project_fl_at_waypoint(
+        current_fl=310,
+        vertical_speed_ft_min=-99.0,
+        planned_fl=280,
+        time_to_waypoint_h=0.5,
+    )
+    assert out_neg == 310
+
+
+def test_project_fl_at_waypoint_climbing_converging_not_yet_at_planned() -> None:
+    """Climbing toward higher planned FL: return projected level if below plan."""
+    # 1000 fpm -> 600 FL/h, 0.01 h -> +6 FL
+    out = FlightPlanEngine._project_fl_at_waypoint(
+        current_fl=300,
+        vertical_speed_ft_min=1000.0,
+        planned_fl=350,
+        time_to_waypoint_h=0.01,
+    )
+    assert out == 306
+
+
+def test_project_fl_at_waypoint_climbing_converging_capped_at_planned() -> None:
+    """Climbing toward plan: projected above planned FL is clamped to planned."""
+    # 600 FL/h * 0.2 h = +120 FL -> would overshoot 350 from 300
+    out = FlightPlanEngine._project_fl_at_waypoint(
+        current_fl=300,
+        vertical_speed_ft_min=1000.0,
+        planned_fl=350,
+        time_to_waypoint_h=0.2,
+    )
+    assert out == 350
+
+
+def test_project_fl_at_waypoint_descending_converging_above_planned() -> None:
+    """Descending toward lower planned FL: projected above plan is returned."""
+    # -600 FL/h * 0.01 h = -6 FL from 350 -> 344, max(344, 300)=344
+    out = FlightPlanEngine._project_fl_at_waypoint(
+        current_fl=350,
+        vertical_speed_ft_min=-1000.0,
+        planned_fl=300,
+        time_to_waypoint_h=0.01,
+    )
+    assert out == 344
+
+
+def test_project_fl_at_waypoint_descending_converging_floored_at_planned() -> None:
+    """Descending toward plan: do not predict below cleared planned FL."""
+    # -600 FL/h * 0.2 h = -120 FL -> 230, max(230, 300)=300
+    out = FlightPlanEngine._project_fl_at_waypoint(
+        current_fl=350,
+        vertical_speed_ft_min=-1000.0,
+        planned_fl=300,
+        time_to_waypoint_h=0.2,
+    )
+    assert out == 300
+
+
+def test_project_fl_at_waypoint_descending_planned_above_returns_kinematic() -> None:
+    """Descending while planned FL is above: no clamp up to planned."""
+    # -300 FL/h * 0.1 h = -30 FL -> 270
+    out = FlightPlanEngine._project_fl_at_waypoint(
+        current_fl=300,
+        vertical_speed_ft_min=-500.0,
+        planned_fl=350,
+        time_to_waypoint_h=0.1,
+    )
+    assert out == 270
+
+
+def test_project_fl_at_waypoint_climbing_planned_below_returns_kinematic() -> None:
+    """Climbing while planned FL is below: no clamp down to planned."""
+    # +300 FL/h * 0.1 h = +30 FL -> 380
+    out = FlightPlanEngine._project_fl_at_waypoint(
+        current_fl=350,
+        vertical_speed_ft_min=500.0,
+        planned_fl=300,
+        time_to_waypoint_h=0.1,
+    )
+    assert out == 380
+
+
+def test_project_fl_at_waypoint_exactly_hundred_fpm_projects() -> None:
+    """vertical speed == 100 is not treated as small, projection applies."""
+    out = FlightPlanEngine._project_fl_at_waypoint(
+        current_fl=300,
+        vertical_speed_ft_min=100.0,
+        planned_fl=350,
+        time_to_waypoint_h=0.0,
+    )
+    assert out == 300
 
 # ---- _get_progress ----
 
@@ -282,6 +387,65 @@ def test_calculate_route_for_upcoming_horizon_empty_after_slice_only_prepend(
     )
     assert len(result.segments) == 1
     assert result.segments[0].ident == "current_flight_pos"
+
+
+def test_flight_levels_close() -> None:
+    """Matches ``FL_LEVEL_COMPARISON_TOLERANCE`` from flight_plan_engine (see patch)."""
+    close = FlightPlanEngine._flight_levels_close
+    assert close(350, 350)
+    assert close(350, 351)
+    assert close(350, 354)
+    assert not close(350, 355)
+    assert not close(350, 360)
+
+
+def test_calculate_route_off_profile_overrides_same_planned_step_only(
+) -> None:
+    """Mismatched first waypoint: override FL on all waypoints with same plan FL."""
+    engine = FlightPlanEngine()
+    flight = _make_flight_adapter(50.0, 14.0, 300.0, 300, vertical_speed=0.0)
+    segs = [
+        _make_segment("A", 50.01, 14.01, flight_level=350),
+        _make_segment("B", 50.02, 14.02, flight_level=350),
+        _make_segment("C", 50.03, 14.03, flight_level=350),
+    ]
+    plan = _make_plan(segs)
+    result = engine.calculate_route_for_upcoming_horizon(10.0, flight, 0, plan)
+    assert result.segments[1].flight_level == 300
+    assert result.segments[2].flight_level == 300
+    assert result.segments[3].flight_level == 300
+
+
+def test_calculate_route_off_profile_clears_override_when_step_changes(
+) -> None:
+    """Different planned FL than first waypoint clears override, later steps use plan."""
+    engine = FlightPlanEngine()
+    flight = _make_flight_adapter(50.0, 14.0, 300.0, 300, vertical_speed=0.0)
+    segs = [
+        _make_segment("A", 50.01, 14.01, flight_level=350),
+        _make_segment("B", 50.02, 14.02, flight_level=310),
+        _make_segment("C", 50.03, 14.03, flight_level=350),
+    ]
+    plan = _make_plan(segs)
+    result = engine.calculate_route_for_upcoming_horizon(10.0, flight, 0, plan)
+    assert result.segments[1].flight_level == 300
+    assert result.segments[2].flight_level == 310
+    assert result.segments[3].flight_level == 350
+
+
+def test_calculate_route_on_profile_respects_planned_levels_downstream(
+) -> None:
+    """Projected FL matches first waypoint: no override, keep enriched levels."""
+    engine = FlightPlanEngine()
+    flight = _make_flight_adapter(50.0, 14.0, 300.0, 350, vertical_speed=0.0)
+    segs = [
+        _make_segment("A", 50.01, 14.01, flight_level=350),
+        _make_segment("B", 50.02, 14.02, flight_level=360),
+    ]
+    plan = _make_plan(segs)
+    result = engine.calculate_route_for_upcoming_horizon(10.0, flight, 0, plan)
+    assert result.segments[1].flight_level == 350
+    assert result.segments[2].flight_level == 360
 
 # ---- calculate_track_miles_to_waypoint ----
 

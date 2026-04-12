@@ -1,7 +1,9 @@
 """Flight plan parsing, enrichment, and MTCD route helpers."""
 
 import copy
+import re
 import time
+from dataclasses import replace as dataclass_replace
 
 import numpy as np
 from lark import UnexpectedCharacters
@@ -22,6 +24,7 @@ from repositories.flight_position_repository import FlightPositionRepository
 logger = LoggingService.get_logger(__name__)
 
 ENRICHED_FLIGHT_PLAN_CACHE_TTL_SECONDS = 30
+FL_LEVEL_COMPARISON_TOLERANCE = 4 # 400 feet tolerance
 
 
 class FlightPlanEngine:
@@ -131,6 +134,12 @@ class FlightPlanEngine:
         Modify segments in the plan and leave only those that can be reached in the select time horizon.
         As the first point in route is prepended current position of the flight with its data.
 
+        When the first upcoming waypoint's projected FL (from vertical speed)
+        matches the planned FL within tolerance, downstream waypoints keep
+        planned levels. Otherwise, an override FL is applied only to waypoints
+        whose planned level matches the first waypoint's planned level, a
+        different planned level clears the override for the rest of flight plan segments.
+
         :param time_horizon: Time horizon in hours
         :param flight:
         :param upcoming_waypoint_index: Index of upcoming waypoint for flight
@@ -147,12 +156,40 @@ class FlightPlanEngine:
         reachable_segments = []
         last_lat, last_lon = flight.lat, flight.lon
 
-        for segment in new_plan.segments:
+        time_to_segment_entry = 0
+        override_fl: int | None = None
+        planned_fl: int | None = None
+
+        for i, segment in enumerate(new_plan.segments):
             distance_in_km = self.physics_calculator.get_distance_between_positions(
                  last_lat, last_lon,
                  segment.waypoint.lat,
                  segment.waypoint.lon,
             )
+
+            time_to_segment_entry += PhysicsCalculator.km_to_nm(distance_in_km) / segment.true_air_speed
+            segment.time_to_segment_entry = time_to_segment_entry
+            # Replace planned FL at the first waypoint with projected FL based on the aircraft's actual vertical speed.
+            # This prevents false conflicts that arise when the flight plan says FL350 at waypoint_A but
+            # the aircraft is still at FL300 and won't reach FL350 in time.
+
+            if i == 0 and segment.flight_level is not None: # when first waypoint ahead for flight
+                planned_fl = segment.flight_level
+                projected_fl = self._project_fl_at_waypoint(
+                    flight.flight_level,
+                    flight.vertical_speed,
+                    segment.flight_level,
+                    time_to_segment_entry,
+                )
+
+                if not self._flight_levels_close(projected_fl, segment.flight_level):
+                    segment = dataclass_replace(segment, flight_level=projected_fl)
+                    override_fl = projected_fl
+            elif i > 0 and segment.flight_level is not None and override_fl is not None:
+                if planned_fl is not None and segment.flight_level != planned_fl:
+                    override_fl = None
+                if planned_fl is not None and segment.flight_level == planned_fl:
+                    segment = dataclass_replace(segment, flight_level=override_fl)
 
             track_miles += PhysicsCalculator.km_to_nm(distance_in_km)
             reachable_segments.append(segment)
@@ -460,7 +497,69 @@ class FlightPlanEngine:
             conf.flight_2_segment_entry_time, conf.flight_2_segment_exit_time
         )
 
-        return flight_1, flight_2, mtcd_horizon
+        time_to_segment_entry_1 = segments_1[conf.flight_1_segment_start_index].time_to_segment_entry
+        time_to_segment_entry_2 = segments_2[conf.flight_2_segment_start_index].time_to_segment_entry
+
+        return flight_1, flight_2, mtcd_horizon, time_to_segment_entry_1, time_to_segment_entry_2
+
+    @staticmethod
+    def _project_fl_at_waypoint(
+            current_fl: int,
+            vertical_speed_ft_min: float,
+            planned_fl: int,
+            time_to_waypoint_h: float,
+    ) -> int:
+        """Estimate the flight level when the aircraft reaches the first upcoming waypoint.
+
+        Projects the current vertical speed forward and clamps the result to the
+        planned flight_level when moving in the converging direction
+        so the aircraft cannot overshoot its cleared altitude.
+
+        Args:
+            current_fl: Aircraft's current flight level.
+            vertical_speed_ft_min: Vertical speed in ft/min.
+            planned_fl: Planned FL at the waypoint from the flight plan.
+            time_to_waypoint_h: Time to reach the waypoint in hours.
+
+        Returns:
+            Projected flight level, clamped to planned_fl.
+        """
+        if abs(vertical_speed_ft_min) < 100:
+            return current_fl
+
+        # ft/min × 60 min/h ÷ 100 ft/FL = FL/h
+        fl_per_hour = vertical_speed_ft_min * 60.0 / 100.0
+        projected_fl = current_fl + fl_per_hour * time_to_waypoint_h
+
+        delta = planned_fl - current_fl
+        toward_planned_fl = (delta > 0 and vertical_speed_ft_min > 0) or (delta < 0 and vertical_speed_ft_min < 0)
+
+        if toward_planned_fl:
+            if vertical_speed_ft_min > 0: # climbing
+                return int(round(min(projected_fl, planned_fl)))
+            return int(round(max(projected_fl, planned_fl)))  # descending
+
+        # aircraft is moving in opposite direction, return projected flight level
+        return int(round(projected_fl))
+
+    @staticmethod
+    def _flight_levels_close(
+            flight_level_1: int,
+            flight_level_2: int,
+            tolerance: int = FL_LEVEL_COMPARISON_TOLERANCE,
+    ) -> bool:
+        """
+        Check whether flight levels are close within tolerance.
+
+        Args:
+            flight_level_1: First flight level.
+            flight_level_2: Second flight level.
+            tolerance: Maximum absolute difference still treated as a match.
+
+        Returns:
+            True when flight levels are close within tolerance.
+        """
+        return abs(flight_level_1 - flight_level_2) <= tolerance
 
     def _get_progress(
             self,
