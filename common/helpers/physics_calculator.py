@@ -278,7 +278,9 @@ class PhysicsCalculator:
         dy = y2 - y1
         dz = z2 - z1
 
-        return PhysicsCalculator.ecef_to_enu(dx, dy, dz, lat1, lon1)
+        east, north, up = PhysicsCalculator.ecef_to_enu(dx, dy, dz, lat1, lon1)
+        sagitta = (east ** 2 + north ** 2) / (2.0 * PhysicsCalculator.EARTH_RADIUS_KM)
+        return east, north, up + sagitta
 
     @staticmethod
     def enu_to_latlon(
