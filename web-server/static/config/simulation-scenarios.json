@@ -224,5 +224,163 @@
         "flightPositions": []
       }
     ]
+  },
+  "SameRouteOvertakeBadHeight": {
+    "name": "Same route, FL340 vs FL360, faster trail with not enough vertical distance",
+    "flights": [
+      {
+        "flightID": "CSA401",
+        "planeType": "A320",
+        "planePosition": {
+          "speed": 200,
+          "vertical_speed": 0,
+          "heading": 90,
+          "height": 345,
+          "position": [
+            50.072778,
+            11.78
+          ]
+        },
+        "route": [
+          {
+            "name": "KULOK",
+            "flight_level": 345,
+            "speed": 240
+          },
+          {
+            "name": "ABERU",
+            "flight_level": 345,
+            "speed": 200
+          },
+          {
+            "name": "BALTU",
+            "flight_level": 345,
+            "speed": 200
+          },
+          {
+            "name": "BULEK",
+            "flight_level": 345,
+            "speed": 200
+          }
+        ],
+        "flightPositions": []
+      },
+      {
+        "flightID": "EZY603",
+        "planeType": "A320",
+        "planePosition": {
+          "speed": 280,
+          "vertical_speed": 0,
+          "heading": 90,
+          "height": 340,
+          "position": [
+            50.072778,
+            11.42
+          ]
+        },
+        "route": [
+          {
+            "name": "KULOK",
+            "flight_level": 340,
+            "speed": 280
+          },
+          {
+            "name": "ABERU",
+            "flight_level": 340,
+            "speed": 280
+          },
+          {
+            "name": "BALTU",
+            "flight_level": 340,
+            "speed": 280
+          },
+          {
+            "name": "BULEK",
+            "flight_level": 340,
+            "speed": 280
+          }
+        ],
+        "flightPositions": []
+      }
+    ]
+  },
+  "Vertical1000ftStackedRoute": {
+    "name": "Same route KULOK–BULEK: FL100 vs FL110 (1000 ft vertical sep)",
+    "flights": [
+      {
+        "flightID": "LOW100",
+        "planeType": "A320",
+        "planePosition": {
+          "speed": 280,
+          "vertical_speed": 0,
+          "heading": 90,
+          "height": 100,
+          "position": [
+            50.072778,
+            11.42
+          ]
+        },
+        "route": [
+          {
+            "name": "KULOK",
+            "flight_level": 100,
+            "speed": 280
+          },
+          {
+            "name": "ABERU",
+            "flight_level": 100,
+            "speed": 260
+          },
+          {
+            "name": "BALTU",
+            "flight_level": 100,
+            "speed": 260
+          },
+          {
+            "name": "BULEK",
+            "flight_level": 100,
+            "speed": 260
+          }
+        ],
+        "flightPositions": []
+      },
+      {
+        "flightID": "UP110",
+        "planeType": "A320",
+        "planePosition": {
+          "speed": 200,
+          "vertical_speed": 0,
+          "heading": 90,
+          "height": 110,
+          "position": [
+            50.072778,
+            11.78
+          ]
+        },
+        "route": [
+          {
+            "name": "KULOK",
+            "flight_level": 110,
+            "speed": 200
+          },
+          {
+            "name": "ABERU",
+            "flight_level": 110,
+            "speed": 200
+          },
+          {
+            "name": "BALTU",
+            "flight_level": 110,
+            "speed": 200
+          },
+          {
+            "name": "BULEK",
+            "flight_level": 110,
+            "speed": 200
+          }
+        ],
+        "flightPositions": []
+      }
+    ]
   }
 }
