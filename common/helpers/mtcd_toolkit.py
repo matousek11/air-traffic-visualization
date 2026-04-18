@@ -74,7 +74,8 @@ class MtcdToolkit:
     def calculate_closest_approach_point(
         self, 
         flight_1: FlightLike,
-        flight_2: FlightLike
+        flight_2: FlightLike,
+        time_to_segment_entry: float = 0,
     ) -> Conflict | None:
         """
         Calculates the closest approach point between two flights.
@@ -82,6 +83,7 @@ class MtcdToolkit:
         Args:
             flight_1: Flight object with attributes: lat, lon, flight_level, ground_speed, track_heading, vertical_speed
             flight_2: Flight object with attributes: lat, lon, flight_level, ground_speed, track_heading, vertical_speed
+            time_to_segment_entry: Remaining time to checked segment entry in hours
             
         Returns:
             Tuple of (horizontal_distance, vertical_distance, time_to_closest_approach,
@@ -151,7 +153,7 @@ class MtcdToolkit:
                 / speed_dot_product
         )
 
-        if time_to_closest_approach < 0:
+        if time_to_closest_approach < -(0.75/60):
             # The closest point already passed
             logger.info(
                 'Closest point of approach already passed, time: %d',
@@ -236,9 +238,9 @@ class MtcdToolkit:
         return Conflict(
             horizontal_distance,
             float(up_distance),
-            time_to_conflict_entry,
-            time_to_conflict_exit,
-            float(time_to_closest_approach),
+            (time_to_conflict_entry + time_to_segment_entry),
+            (time_to_conflict_exit + time_to_segment_entry),
+            (float(time_to_closest_approach) + time_to_segment_entry),
             flight_1_conflict_entry_pos,
             flight_1_conflict_exit_pos,
             flight_2_conflict_entry_pos,

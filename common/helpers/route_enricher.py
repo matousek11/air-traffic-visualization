@@ -222,7 +222,8 @@ class RouteEnricher:
                 flight_level
             )
 
-        raise ValueError(f"More than two segments found for {start_waypoint} in airway {airway_id}")
+        logger.error(f"More than two segments found for {start_waypoint} in airway {airway_id}")
+        return []
 
     def _get_coordinate(self, identifier: str) -> CachedCoordinates | None:
         """Parse coordinate string and returns its position"""
@@ -269,9 +270,6 @@ class RouteEnricher:
 
         # find referential point
         ref_nav = self.get_point(lat, lon, ref_id)
-
-        if ref_nav is None:
-            return None
 
         # convert nm to km
         dist_km = PhysicsCalculator.nm_to_km(float(dist_nm))

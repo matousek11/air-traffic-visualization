@@ -12,6 +12,7 @@ from services.mtcd_event_check import MTCDEventCheck
 from services.pika_client import PikaClient
 
 BATCH_SIZE = 100
+FREQUENCY_SECONDS = 35
 logger = LoggingService.get_logger(__name__)
 
 
@@ -69,7 +70,7 @@ if __name__ == "__main__":
 
             create_detection_jobs(potential_conflicts)
             
-            time.sleep(40)
+            time.sleep(FREQUENCY_SECONDS)
     except KeyboardInterrupt:
         logger.info("Stopped by user (Ctrl+C)")
         print("\nStopped.")

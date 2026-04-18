@@ -53,7 +53,10 @@ class FlightPlanEngine:
         """
 
         # Removed modificators
-        raw_string = raw_string.replace(" IFR", "").replace(" VFR", "")
+        to_remove = r'\b(IFR|VFR|OAT|GAT|TR\d+)\b'
+        raw_string = re.sub(to_remove, '', raw_string)
+
+        raw_string = " ".join(raw_string.split())
 
         now = time.monotonic()
         cached_entry = self._enriched_plan_cache.get(flight_id)
@@ -412,7 +415,7 @@ class FlightPlanEngine:
             segments_1: list[EnrichedRouteSegment],
             segments_2: list[EnrichedRouteSegment],
             conf: ConflictingSegmentWithTime,
-    ) -> tuple[FlightLike, FlightLike, float]:
+    ) -> tuple[FlightLike, FlightLike, float, float, float]:
         """
         Calculate positions of flights in a moment where latter plane enter segments where conflict can happen,
         also calculates time horizon in which flight conflict can happen as later on flights can change heading.
@@ -451,8 +454,9 @@ class FlightPlanEngine:
 
             # Calculate t for interpolation
             logger.debug("Segment entry time: %f, exit time: %f", entry_time, exit_time)
-            duration = exit_time - entry_time
+            duration = exit_time - entry_time + 0.0001
             if duration <= 0:
+                logger.error("Segment entry time: %f, exit time: %f", entry_time, exit_time)
                 raise ValueError("Duration of segment should be positive")
             elapsed = segment_entry_time - entry_time
             t = elapsed / duration

@@ -8,6 +8,7 @@ from common.helpers.physics_calculator import PhysicsCalculator
 from common.helpers.mtcd_toolkit import FlightLike, MtcdToolkit, Conflict
 from common.models.flight_position_adapter import FlightPositionAdapter
 from common.helpers.flight_plan_engine import FlightPlanEngine
+from exceptions import NavNotFoundError
 
 logger = LoggingService.get_logger(__name__)
 
@@ -16,7 +17,7 @@ class MtcdPipeline:
     """Runs MTCD checks for a pair of flights (route-based or kinematic)."""
 
     LOOK_AHEAD_TIME_HORIZON = 0.5
-    ACTIVE_DETECTION_TIME_HORIZON = 0.25
+    ACTIVE_DETECTION_TIME_HORIZON = 0.25 #0.3333333333 #0.1666666667
     TIME_SKEW_SYNC_THRESHOLD_SECONDS = 10
 
     def __init__(self):
@@ -44,14 +45,17 @@ class MtcdPipeline:
 
             return []
 
-        flight_1, flight_2 = self._align_positions_to_common_time(
-            flight_1,
-            flight_2,
-        )
+        try:
+            flight_1, flight_2 = self._align_positions_to_common_time(
+                flight_1,
+                flight_2,
+            )
+        except NavNotFoundError as e:
+            logger.warning("Error processing flight plans: %s", e, exc_info=True)
+            return []
 
         # Parse the route string into a flight plan object
         if flight_1.route is None or flight_2.route is None:
-            # TODO: run precise MTCD algorithm and return calculated data
             logger.info(
                 "Flights %s and %s have no route, "
                 "running MTCD without route.",
@@ -83,14 +87,19 @@ class MtcdPipeline:
 
             return [closest_approach_point]
 
-        parsed_flightplan_1 = self.flight_plan_engine.process_flight_plan(
-            flight_1.flight_id,
-            flight_1.route,
-        )
-        parsed_flightplan_2 = self.flight_plan_engine.process_flight_plan(
-            flight_2.flight_id,
-            flight_2.route,
-        )
+        try:
+            parsed_flightplan_1 = self.flight_plan_engine.process_flight_plan(
+                flight_1.flight_id,
+                flight_1.route,
+            )
+            parsed_flightplan_2 = self.flight_plan_engine.process_flight_plan(
+                flight_2.flight_id,
+                flight_2.route,
+            )
+        except NavNotFoundError as e:
+            logger.warning("Error processing flight plans: %s", e, exc_info=True)
+            return []
+
         n1 = len(parsed_flightplan_1.segments)
         n2 = len(parsed_flightplan_2.segments)
         if n1 <= 1 or n2 <= 1:
@@ -167,7 +176,7 @@ class MtcdPipeline:
             # later entry time is the time when we are interested in location of the second flight
             # first flight will be at position of waypoint
             # precise MTCD will have time boundary of the remaining time to the first exit of segment of any flight
-        pairs_for_precise_mtcd: list[tuple[FlightLike, FlightLike, float]] = []
+        pairs_for_precise_mtcd: list[tuple[FlightLike, FlightLike, float, float, float]] = []
         for conflicting_segment in conflicting_segments:
             pairs_for_precise_mtcd.append(self.flight_plan_engine.get_flight_prediction_for_segments(
                 parsed_flightplan_1.segments,
@@ -181,11 +190,13 @@ class MtcdPipeline:
 
         detected_conflicts: list[Conflict] = []
         for pair_for_precise_mtcd in pairs_for_precise_mtcd:
-            pair_flight_1, pair_flight_2, time_horizon = pair_for_precise_mtcd
+            pair_flight_1, pair_flight_2, time_horizon, time_to_seg_entry_1, time_to_seg_entry_2 = pair_for_precise_mtcd
+            time_to_segment_entry = min(time_to_seg_entry_1, time_to_seg_entry_2)
             closest_approach_point = (
                 self.mtcd_toolkit.calculate_closest_approach_point(
                     pair_flight_1,
                     pair_flight_2,
+                    time_to_segment_entry,
                 )
             )
             logger.info(closest_approach_point)
@@ -198,9 +209,14 @@ class MtcdPipeline:
             )
             if beyond_segment:
                 # Conflict isn't detected or is beyond the segment
-                logger.info(
-                    "One conflict pair skipped because it doesn't have CPA or is beyond the segment time horizon."
-                )
+                if closest_approach_point is None:
+                    logger.info(
+                        "One conflict pair skipped because it doesn't have CPA."
+                    )
+                else:
+                    logger.info(
+                        "One conflict pair skipped because it is beyond the segment time horizon."
+                    )
                 logger.info(
                     "Time to conflict entry: %f, segment time horizon: %f",
                     closest_approach_point.time_to_conflict_entry if closest_approach_point is not None else -1,
@@ -369,7 +385,7 @@ class MtcdPipeline:
         return (
                 horizontal_distance < 5.0  # 5 nautical miles
                 and abs(vertical_distance)
-                < PhysicsCalculator.feet_to_nautical_miles(1000)
+                < PhysicsCalculator.feet_to_nautical_miles(1000 - 50) # -50 for floating errors
                 and time_to_closest_approach >= 0
         )
 
