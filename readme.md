@@ -1,5 +1,9 @@
 # Medium-term Collision Detection heatmap visualization
-This software is visualizing places where collision predictions occur frequently above Europe.
+This application ingest flight data from BlueSky or NM B2B, based on that 
+predicts trajectory in almost real-time and predicts possible collisions between pair of flights.
+These flights and possible collisions are then visualized live on map and later on in a heatmap.
+Application was developed as part of the Bachelor's thesis.
+![dataset-screenshot.png](presentation-files/dataset-screenshot.png)
 
 # How to run
 1. Unzip files from `nm-b2b-structure-data/zipped` to `nm-b2b-structure-data/`
