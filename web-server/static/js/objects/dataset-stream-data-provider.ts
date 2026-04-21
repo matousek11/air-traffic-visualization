@@ -3,6 +3,7 @@ import type { ApiMTCDEventStructure } from '../types/api-mtcd-event';
 import type { VisualizationDataProvider } from '../types/visualization-data-provider';
 import type {
   DatasetImportJson,
+  DatasetImportOptionJson,
   ReplayStatusJson,
 } from './dataset-replay-api-provider';
 import { DatasetReplayApiProvider } from './dataset-replay-api-provider';
@@ -21,9 +22,9 @@ export class DatasetStreamDataProvider implements VisualizationDataProvider {
   }
 
   /**
-   * Lists dataset stems available for import.
+   * Lists CSV files and folders available for import.
    */
-  public async getImportOptions(): Promise<string[]> {
+  public async getImportOptions(): Promise<DatasetImportOptionJson[]> {
     return this.datasetReplayApiProvider.getImportOptions();
   }
 

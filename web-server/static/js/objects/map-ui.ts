@@ -268,6 +268,7 @@ export class MapUi {
                 <h3>${flight.flightID}</h3>
                 <ul>
                     <li><b>speed:</b> ${flight.planePosition.speed}kts</li>
+                    <li><b>vertical speed:</b> ${Math.round(flight.planePosition.vertical_speed)} fpm</li>
                     <li><b>heading:</b> ${flight.planePosition.heading} degrees</li>
                     <li><b>height:</b> ${flight.planePosition.height} feet</li>
                     <li><b>wind:</b> ${flight.wind.heading}/${flight.wind.speed}</li>

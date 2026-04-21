@@ -9,3 +9,4 @@ class DatasetImportResponse(BaseModel):
     table_name: str
     rows_imported: int
     rows_skipped: int
+    source_files: list[str] | None = None

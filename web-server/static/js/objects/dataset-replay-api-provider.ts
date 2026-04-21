@@ -11,6 +11,14 @@ export type DatasetImportJson = {
   table_name: string;
   rows_imported: number;
   rows_skipped: number;
+  source_files?: string[] | null;
+};
+
+/** One entry from GET /datasets/import-options. */
+export type DatasetImportOptionJson = {
+  id: string;
+  label: string;
+  kind: 'file' | 'folder';
 };
 
 /**
@@ -20,11 +28,11 @@ export class DatasetReplayApiProvider {
   static readonly BASE_URL = 'http://localhost:8010';
 
   /**
-   * Lists dataset stems available for import.
+   * Lists CSV files and importable folders under the datasets root.
    *
-   * @returns Dataset names
+   * @returns Options with id (for import), label, and kind
    */
-  public async getImportOptions(): Promise<string[]> {
+  public async getImportOptions(): Promise<DatasetImportOptionJson[]> {
     const response = await fetch(
       `${DatasetReplayApiProvider.BASE_URL}/datasets/import-options`,
     );
@@ -33,7 +41,7 @@ export class DatasetReplayApiProvider {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
 
-    return await response.json() as Promise<string[]>;
+    return await response.json() as Promise<DatasetImportOptionJson[]>;
   }
 
   /**

@@ -103,10 +103,10 @@ export class AirTrafficVisualization {
     this.mapUi.stopSimulation();
 
     try {
-      const names = await this.mapUi.getDatasetStreamDataProvider().getImportOptions();
-      const opts = names.map((n): { id: string; label: string } => ({
-        id: n,
-        label: n,
+      const options = await this.mapUi.getDatasetStreamDataProvider().getImportOptions();
+      const opts = options.map((item): { id: string; label: string } => ({
+        id: item.id,
+        label: item.label,
       }));
       this.scenarioModal.setOptions(opts, 'Dataset');
     } catch (error) {
@@ -215,13 +215,13 @@ export class AirTrafficVisualization {
   private async openScenarioModal(): Promise<void> {
     if (this.currentDataSourceId === 'live') {
       try {
-        const names = await this.mapUi
+        const options = await this.mapUi
           .getDatasetStreamDataProvider()
           .getImportOptions();
         this.scenarioModal.setOptions(
-          names.map((n): { id: string; label: string } => ({
-            id: n,
-            label: n,
+          options.map((item): { id: string; label: string } => ({
+            id: item.id,
+            label: item.label,
           })),
           'Dataset',
         );
@@ -246,7 +246,7 @@ export class AirTrafficVisualization {
   /**
    * Starts streaming of selected dataset and prepares the client for incoming data.
    *
-   * @param datasetName Dataset stem from import-options.
+   * @param datasetName Option id from import-options (CSV file or folder name).
    */
   private async startLiveDatasetStreaming(datasetName: string): Promise<void> {
     const ds = this.mapUi.getDatasetStreamDataProvider();
