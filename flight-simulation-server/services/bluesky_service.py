@@ -103,10 +103,16 @@ class BlueskyService:
         route_string = self.flight_plan_service.get_route_string(flight_id)
         # Get wind on position of plane (getdata returns windnorth, windeast)
         alt_ft = int(PhysicsCalculator.meters_to_feet(bs.traf.alt[idx]))
-        windnorth, windeast = bs.traf.wind.getdata(bs.traf.lat[idx], bs.traf.lon[idx], bs.traf.alt[idx])
-        wind_speed = np.sqrt(windnorth ** 2 + windeast ** 2) * 1.944
+        wind_north_arr, wind_east_arr = bs.traf.wind.getdata(
+            np.array([bs.traf.lat[idx]]),
+            np.array([bs.traf.lon[idx]]),
+            np.array([bs.traf.alt[idx]])
+        )
+        wind_north = float(wind_north_arr[0])
+        wind_east = float(wind_east_arr[0])
+        wind_speed = np.sqrt(wind_north ** 2 + wind_east ** 2) * 1.944
         # Wind FROM direction: arctan2(-east, -north) for aviation bearing
-        wind_heading = (np.degrees(np.arctan2(-windeast, -windnorth)) + 360) % 360
+        wind_heading = (np.degrees(np.arctan2(-wind_east, -wind_north)) + 360) % 360
         return FlightDetailResponse(
             flight_id=flight_id,
             plane_type=bs.traf.type[idx],
@@ -126,6 +132,12 @@ class BlueskyService:
         """Loads all flights"""
         flights = []
 
+        # Compute wind for all aircraft at once
+        if bs.traf.ntraf > 0:
+            all_wind_north, all_wind_east = bs.traf.wind.getdata(bs.traf.lat, bs.traf.lon, bs.traf.alt)
+        else:
+            all_wind_north = all_wind_east = np.zeros(0)
+
         for i in range(bs.traf.ntraf):
             acid = bs.traf.id[i]
             lat = bs.traf.lat[i]
@@ -143,12 +155,12 @@ class BlueskyService:
             gs = bs.traf.gs[i] * 1.94384449 # from km/h to kts
             flight_plan = self.flight_plan_service.get_flight_plan(acid)
             route_string = self.flight_plan_service.get_route_string(acid)
-            # Get wind on position of plane (getdata returns windnorth, windeast)
             alt_ft = int(PhysicsCalculator.meters_to_feet(bs.traf.alt[i]))
-            windnorth, windeast = bs.traf.wind.getdata(bs.traf.lat[i], bs.traf.lon[i], bs.traf.alt[i])
-            wind_speed = np.sqrt(windnorth ** 2 + windeast ** 2) * 1.944
+            wind_north = float(all_wind_north[i])
+            wind_east = float(all_wind_east[i])
+            wind_speed = np.sqrt(wind_north ** 2 + wind_east ** 2) * 1.944
             # Wind FROM direction: arctan2(-east, -north) for aviation bearing
-            wind_heading = (np.degrees(np.arctan2(-windeast, -windnorth)) + 360) % 360
+            wind_heading = (np.degrees(np.arctan2(-wind_east, -wind_north)) + 360) % 360
             flights.append(
                 FlightDetailResponse(
                     flight_id=acid,
