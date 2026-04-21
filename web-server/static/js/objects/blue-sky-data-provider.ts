@@ -93,6 +93,7 @@ export class BlueSkyDataProvider implements VisualizationDataProvider {
    * Stops simulation and removes all flights from simulation
    */
   public async resetSimulation(): Promise<void> {
+    await this.databaseApiProvider.resetForNewSimulation();
     return this.blueSkyApiProvider.resetSimulation();
   }
 
