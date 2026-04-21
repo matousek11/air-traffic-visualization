@@ -119,6 +119,43 @@ services:
       - ./common:/app/common
       - ./database-service:/app/database-service
 
+  flight-simulation-server:
+    build:
+      context: .
+      dockerfile: docker/flight_simulation_server/Dockerfile
+    container_name: mtcd-flight-simulation-server
+    restart: unless-stopped
+    depends_on:
+      - database-api
+    ports:
+      - "8001:8001"
+    environment:
+      DATABASE_SERVICE_URL: http://database-api:8002
+      DB_USER: atm_user
+      DB_PASS: atm_password
+      DB_HOST: timescaledb
+      DB_PORT: 5432
+      DB_NAME: atm
+    volumes:
+      - ./flight-simulation-server:/app/flight-simulation-server
+      - ./common:/app/common
+      - ./database-service:/app/database-service
+
+  web-server:
+    build:
+      context: .
+      dockerfile: docker/web_server/Dockerfile
+    container_name: mtcd-web-server
+    restart: unless-stopped
+    depends_on:
+      - database-api
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_SERVICE_URL: http://database-api:8002
+    volumes:
+      - ./web-server/static:/app/web-server/static
+
 volumes:
   timescale_data:
   rabbitmq_data:

@@ -5,7 +5,7 @@ pylint
 black
 redis~=6.2.0
 fastapi[standard]~=0.115.12
-bluesky-simulator[full]
+bluesky-simulator[full]~=1.0.7
 numpy
 lark
 redis
