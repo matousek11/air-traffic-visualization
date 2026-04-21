@@ -8,6 +8,7 @@ web-server/static/build
 #py
 __pycache__/
 sample-nm-b2b-data
+database-service/.venv
 venv
 
 uml
