@@ -4,6 +4,7 @@ from geoalchemy2 import WKTElement
 from sqlalchemy import func
 
 from common.helpers.logging_service import LoggingService
+from exceptions import NavNotFoundError
 from models import Nav
 from repositories.coord_lookup_cache import CachedCoordinates, get_nav_cache
 from services.database import SessionLocal
@@ -57,8 +58,8 @@ class NavRepository:
         lon: float,
         identification: str,
     ) -> Nav | CachedCoordinates:
-        """Finds the closest nav point or raises ``ValueError`` if missing."""
+        """Finds the closest nav point or raises ``NavNotFoundError`` if missing."""
         nav = NavRepository.get_closest_nav(lat, lon, identification)
         if nav is None:
-            raise ValueError(f"No NAV point found for {identification}, lat: {lat}, lon: {lon}")
+            raise NavNotFoundError(identification, lat, lon)
         return nav

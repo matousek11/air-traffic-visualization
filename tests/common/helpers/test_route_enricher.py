@@ -11,6 +11,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from common.helpers.route_enricher import RouteEnricher
+from exceptions import NavNotFoundError
 from common.models.flight_parser.enriched_flight_plan import EnrichedFlightPlan
 from common.models.flight_parser.enriched_route_segment import EnrichedRouteSegment
 from common.models.flight_parser.initial_route_config import InitialRouteConfig
@@ -309,12 +310,14 @@ def test_get_point_raises_when_neither_fix_nor_nav_found(
     mock_fix_repo: MagicMock,
     mock_nav_repo: MagicMock,
 ) -> None:
-    """get_point propagates ValueError when NavRepository.get_closest_nav_or_fail raises."""
+    """get_point propagates NavNotFoundError when get_closest_nav_or_fail raises."""
     mock_fix_repo.get_closest_fix.return_value = None
-    mock_nav_repo.get_closest_nav_or_fail.side_effect = ValueError("No NAV point found")
+    mock_nav_repo.get_closest_nav_or_fail.side_effect = NavNotFoundError(
+        "MISSING", 50.0, 14.0
+    )
 
     enricher = RouteEnricher()
-    with pytest.raises(ValueError, match="No NAV point found"):
+    with pytest.raises(NavNotFoundError, match="No NAV point found"):
         enricher.get_point(50.0, 14.0, "MISSING")
 
 # ---- get_airway_waypoints ----

@@ -143,6 +143,7 @@ def test_calculate_closest_approach_point_cpa_passed_returns_none() -> None:
         ground_speed=200, track_heading=90, vertical_speed=0.0
     )
     result = toolkit.calculate_closest_approach_point(flight1, flight2)
+    print(result)
     assert result is None
 
 

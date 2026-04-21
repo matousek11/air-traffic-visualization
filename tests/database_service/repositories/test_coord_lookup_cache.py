@@ -4,6 +4,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from exceptions import NavNotFoundError
 from repositories.coord_lookup_cache import (
     CoordLookupCache,
     NAV_FIX_CACHE_TTL_SECONDS,
@@ -90,3 +91,21 @@ def test_nav_repository_second_call_hits_cache(
     NavRepository.get_closest_nav(48.54, 12.34, "NAV1")
 
     assert mock_db.query.call_count == 1
+
+
+@patch("repositories.nav_repository.SessionLocal")
+def test_nav_repository_get_closest_nav_or_fail_raises_when_missing(
+    mock_session_local: MagicMock,
+) -> None:
+    """get_closest_nav_or_fail raises NavNotFoundError when no row matches."""
+    mock_db = MagicMock()
+    mock_session_local.return_value = mock_db
+    chain = mock_db.query.return_value.filter.return_value.order_by
+    chain.return_value.first.return_value = None
+
+    with pytest.raises(NavNotFoundError) as exc_info:
+        NavRepository.get_closest_nav_or_fail(50.0, 14.0, "UNKNOWN")
+
+    assert exc_info.value.identification == "UNKNOWN"
+    assert exc_info.value.lat == 50.0
+    assert exc_info.value.lon == 14.0

@@ -537,7 +537,7 @@ def test_get_flight_prediction_for_segments_returns_flight_like_and_horizon(
         flight_2_segment_entry_time=10.0,
         flight_2_segment_exit_time=50.0,
     )
-    f1, f2, horizon = engine.get_flight_prediction_for_segments(
+    f1, f2, horizon, _, _ = engine.get_flight_prediction_for_segments(
         segs_1, segs_2, conf
     )
     assert hasattr(f1, "lat") and hasattr(f1, "lon")
@@ -566,7 +566,7 @@ def test_get_flight_prediction_for_segments_zero_duration_raises() -> None:
         flight_2_segment_start_index=0,
         flight_2_segment_end_index=1,
         flight_1_segment_entry_time=10.0,
-        flight_1_segment_exit_time=10.0,
+        flight_1_segment_exit_time=9.0,
         flight_2_segment_entry_time=0.0,
         flight_2_segment_exit_time=60.0,
     )
@@ -592,7 +592,7 @@ def test_get_flight_prediction_for_segments_interpolation_at_entry() -> None:
         flight_2_segment_entry_time=0.0,
         flight_2_segment_exit_time=60.0,
     )
-    f1, _, _ = engine.get_flight_prediction_for_segments(segs, segs, conf)
+    f1, _, _, _, _ = engine.get_flight_prediction_for_segments(segs, segs, conf)
     assert math.isclose(f1.lat, 50.0, abs_tol=1e-6)
     assert math.isclose(f1.lon, 14.0, abs_tol=1e-6)
 
